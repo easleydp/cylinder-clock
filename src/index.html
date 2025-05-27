@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D Cylinder Clock</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background-color: #f0f0f0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+      #clockContainer {
+        width: 600px;
+        height: 200px; /* Typical 3:1 aspect ratio */
+        border: 1px solid #ccc;
+      }
+      /* Example of a different aspect ratio div */
+      /* #clockContainer {
+            width: 400px;
+            height: 400px;
+            border: 1px solid #ccc;
+        } */
+    </style>
+  </head>
+  <body>
+    <div id="clockContainer"></div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.164.1/build/three.module.js"
+        }
+      }
+    </script>
+    <script type="module" src="CylinderClock.js"></script>
+    <script type="module">
+      import CylinderClock from "./CylinderClock.js";
+
+      const clockContainer = document.getElementById("clockContainer");
+
+      if (clockContainer) {
+        const clock = new CylinderClock(clockContainer, {
+          // language: 'en-GB', // Uncomment for British English
+          // textColor: '#E0E0E0',
+          // cylinderSurfaceColor: '#4A4A4A', // Darker cylinder
+          // majorMarkColor: '#E0E0E0',
+          // minorMarkColor: '#B0B0B0',
+          // redLineColor: 'rgba(255, 50, 50, 0.8)',
+          // cylinderMinuteCount: 6, // Example: cylinder rotates every 6 minutes
+          // fontFamily: 'Georgia, serif',
+        });
+
+        // Example of using setTime:
+        // setTimeout(() => {
+        //     const futureTime = new Date();
+        //     futureTime.setHours(futureTime.getHours() + 1);
+        //     futureTime.setMinutes(15);
+        //     clock.setTime(futureTime);
+        //     console.log("Time set to 1 hour and 15 minutes from now.");
+        // }, 5000);
+
+        // Example of destroy:
+        // setTimeout(() => {
+        //     clock.destroy();
+        //     console.log("Clock destroyed.");
+        // }, 15000);
+      } else {
+        console.error("Clock container not found.");
+      }
+    </script>
+  </body>
+</html>
