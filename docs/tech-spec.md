@@ -38,8 +38,8 @@ The clock must be rendered into a user-provided HTML `div` element.
 
 **3.2. Time Text**
 
-- **Content**: Text representing the time is rendered directly onto the cylinder's surface. The text should use an "emboss" effect, i.e. a three-dimensional effect, where the text is slightly raised above the cylinder surface. The text should appear to be sculpted from semi-reflective polished graphite.
-- **Language/Format**: Time is displayed in British or American English. See **Appendix A** and **Appendix B** for specific formatting rules.
+- **Content**: Text representing the time will be rendered directly onto the cylinder's surface. The text will use an "emboss" effect, i.e. a three-dimensional effect, where the text is slightly raised above the cylinder surface. The text will appear to be sculpted from semi-reflective polished graphite.
+- **Language/Format**: Time will be displayed in British or American English using the 12 hour clock. It is not required to display "am" or "pm". See **Appendix A** and **Appendix B** for language specific formatting rules.
 - **Arrangement**:
   - There will be one unique line of text for each of the 60 minutes in an hour.
   - The text line corresponding to the current minute (at 0 seconds) is visually centered with the static red index lines.
@@ -83,8 +83,11 @@ The clock's rotation and, consequently, the displayed time, must update smoothly
 
 **4.3. Rotation Mechanics**
 
-- The cylinder's texture will represent a full 60 minutes.
-- The cylinder will complete one full rotation around its axis every hour.
+- The full 360 degree extent of the cylinder's curved surface will represent N minutes, where N is typically 5 or 6.
+  - Hence, the cylinder will complete one full rotation around its axis every N minutes.
+  - The intention is that, from the perspective of the viewer standing some distance back from the clock, no more than three lines of text will be visible, i.e. (i) text nearest the horizontal center line of the clock being the current time (to the nearest minute), (ii) text above this being the time one minute ago, (iii) text below this being the time in one minute's time.
+  - Clearly, with N being a small number, there will be insufficient space around the curved cylinder surface to accommodate all of the textual time strings than can occur over the full cycle. The solution is that it will be as if textual time strings are repainted when out of view, round the back of the cylinder. As a fresh line of text rotates into view at the bottom of the cylinder it will have a value that reflects a forthcoming time.
+  - The configuration parameter for N is actually called `cylinderMinuteCount`.
 - The rotation speed is constant, effectively scrolling the view by one "minute segment" (the height occupied by one minute's text and its associated 12 five-second marks) every 60 seconds.
 - The exact rotational position is determined by the current minute and second of the hour.
 
@@ -109,6 +112,7 @@ The clock's rotation and, consequently, the displayed time, must update smoothly
 | `minorMarkColor` | string | `'#333333'` | CSS color for the minor (5-second) black marks on the cylinder. |
 | `fontFamily` | string | `'Arial, sans-serif'` | Font family for the time text. |
 | `textVerticalAlign` | string | `'middle'` | Vertical alignment of text within its allotted band ('top', 'middle', 'bottom'). This affects placement relative to the major minute mark. |
+| `cylinderMinuteCount` | number | `5` | Number of minutes for the cylinder to complete one full rotation around its axis. To see no more than three lines of text, set to 5 or 6. |
 
 **5.3. Instance Methods**
 
