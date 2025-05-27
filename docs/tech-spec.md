@@ -66,6 +66,9 @@ The clock must be rendered into a user-provided HTML `div` element.
   - Function: They act as static pointers. As the cylinder rotates, the black marks scroll past these red lines, allowing the viewer to gauge the current 5-second interval of the current minute.
   - Color and opacity will be configurable.
 
+A very approximate graphical mockup is below. Note, however, that this mockup is imperfect in that it depicts the cylinder looking 'flat' rather than curved/3D. The requirement is for a realistic looking cylinder that looks curved with text and markers that appear to be embossed on its surface.
+![mockup](./initial-outline-mockup.png)
+
 ---
 
 ## 4. Functional Behavior
