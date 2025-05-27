@@ -5,7 +5,7 @@ Help me create a detailed technical specification for a JavaScript library that 
 A graphical mockup is below. Note, however, that this mockup is imperfect in that it depicts the cylinder looking 'flat' rather than curved/3D. The requirement is for a realistic looking cylinder that looks curved with text that appears to be wrapped onto its surface.
 ![mockup](./initial-outline-mockup.png)
 
-Notice in the mockup the black and red markings on the left and right sides of the cylinder.
+Notice in the mockup there are black and red markings on the extreme left and right edges of the curved surface of the cylinder:
 
 1. The black marks, like the text, are part of the cylinder and so rotate with it. There are twelve marks every minute (i.e. one every 5 seconds) and the minute markers (coincident with a line of text) are larger than the eleven intermediate marks.
 2. The translucent red lines are separate from and in front of the cylinder. They don't move. They serve to index (point at) the current time on the cylinder behind. The idea is that, taken in conjunction with the black marks (1), they're analogous to a red second hand sweeping round a traditional analogue clock dial.

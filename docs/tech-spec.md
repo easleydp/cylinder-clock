@@ -6,7 +6,9 @@
 This document outlines the technical specifications for a JavaScript library, named `CylinderClock`, designed to render a 3D rotating horizontal cylinder clock within a specified HTML `div` element.
 
 **1.2. Overview**
-The library will display the current time as text on the surface of a continuously rotating 3D cylinder. The text will be in British or American English (configurable). The clock will feature visual cues for minutes and 5-second intervals, including markings on the cylinder and static index lines, creating an effect analogous to a second hand. The rendering will fill the target `div` and adapt to its dimensions, typically maintaining a 3:1 aspect ratio for cylinder length to diameter.
+The library will display the current time as text on the surface of a continuously rotating 3D cylinder. The text will be in British or American English (configurable). As well as the text, the surface of the cylinder will feature markings for minutes and 5-second intervals. A red static index line running horizontally along the center of the clock (overlapping the markers but interrupted by the text) will create an effect analogous to a second hand.
+
+The rendering will fill the target `div` and adapt to its dimensions. Typical dimensions of the `div` are 3:1 (so the cylinder length will typically be 3 times the cylinder diameter).
 
 ---
 
@@ -19,7 +21,7 @@ The clock must be rendered into a user-provided HTML `div` element.
 
 - The rendered clock (cylinder and associated elements) should fill the entire area of the target `div`.
 - The library must be responsive to changes in the target `div`'s dimensions, adjusting the clock's size and proportions dynamically.
-- The cylinder's length will typically be three times its diameter, corresponding to a target `div` with a 3:1 width-to-height aspect ratio. If the `div` has a different aspect ratio, the library should still fill the div, potentially adjusting the cylinder's relative length/diameter or field of view to best utilize the space while maintaining visual integrity. The primary constraint is that the cylinder's diameter matches the div height.
+- The cylinder's length will typically be three times its diameter, corresponding to a target `div`, typically with a 3:1 width-to-height aspect ratio. If the `div` has a different aspect ratio, the library should still fill the div, potentially adjusting the cylinder's relative length/diameter or field of view to best utilize the space while maintaining visual integrity.
 
 ---
 
@@ -28,7 +30,7 @@ The clock must be rendered into a user-provided HTML `div` element.
 **3.1. 3D Cylinder**
 
 - **Orientation**: The cylinder will be oriented horizontally.
-- **Appearance**: It must be rendered as a realistic 3D object with a curved surface. Basic lighting (e.g., ambient and one directional light) should be applied to give a sense of depth and form. The cylinder should have a semi-reflective surface (like ivory but without imperfections such as Schreger lines or growth rings).
+- **Appearance**: It must be rendered as a realistic 3D object with a curved surface. Basic lighting (e.g., ambient and one directional light) should be applied to give a sense of depth and form. The cylinder should have a semi-reflective surface like ivory but without its surface imperfections (such as Schreger lines or growth rings).
 - **Rotation**:
   - The cylinder rotates around its horizontal axis.
   - From the viewer's perspective, the text on the front surface of the cylinder scrolls upwards.
@@ -36,7 +38,7 @@ The clock must be rendered into a user-provided HTML `div` element.
 
 **3.2. Time Text**
 
-- **Content**: Text representing the time is rendered directly onto the cylinder's surface. The text should use an "emboss" effect, i.e. a three-dimensional effect, where the text is slightly raised above the cylinder surface. The text should appear to be sculpted from polished graphite.
+- **Content**: Text representing the time is rendered directly onto the cylinder's surface. The text should use an "emboss" effect, i.e. a three-dimensional effect, where the text is slightly raised above the cylinder surface. The text should appear to be sculpted from semi-reflective polished graphite.
 - **Language/Format**: Time is displayed in British or American English. See **Appendix A** and **Appendix B** for specific formatting rules.
 - **Arrangement**:
   - There will be one unique line of text for each of the 60 minutes in an hour.
@@ -66,7 +68,7 @@ The clock must be rendered into a user-provided HTML `div` element.
   - Function: They act as static pointers. As the cylinder rotates, the black marks scroll past these red lines, allowing the viewer to gauge the current 5-second interval of the current minute.
   - Color and opacity will be configurable.
 
-A very approximate graphical mockup is below. Note, however, that this mockup is imperfect in that it depicts the cylinder looking 'flat' rather than curved/3D. The requirement is for a realistic looking cylinder that looks curved with text and markers that appear to be embossed on its surface.
+A very approximate graphical mockup is below. Note, however, that this mockup is imperfect in that it depicts the cylinder looking 'flat' rather than curved/3D. The requirement (as detailed above) is for a realistic looking cylinder that looks curved with text and markers that appear to be embossed on its surface.
 ![mockup](./initial-outline-mockup.png)
 
 ---
