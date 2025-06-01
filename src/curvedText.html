@@ -64,20 +64,16 @@
       }
 
       function createEmbossedText(font) {
-        const text = "Three.js Text!";
         const radius = 10;
-        const textHeight = 1;
-        const textSize = 2;
-
-        const textGeometry = new TextGeometry(text, {
+        const textGeometry = new TextGeometry("Three.js Text!", {
           font: font,
-          size: textSize,
-          height: textHeight,
+          size: 5,
+          depth: 0.4,
           curveSegments: 12,
           bevelEnabled: true,
-          bevelThickness: 0.2,
-          bevelSize: 0.1,
-          bevelSegments: 5,
+          bevelThickness: 0.02,
+          bevelSize: 0.01,
+          bevelSegments: 3,
         });
 
         textGeometry.computeBoundingBox();
@@ -87,16 +83,19 @@
 
         // Deform text geometry into cylindrical shape
         const positionAttr = textGeometry.attributes.position;
+        const outwardOffset = 0.2; // how far text sticks out from the cylinder
         for (let i = 0; i < positionAttr.count; i++) {
           const x = positionAttr.getX(i);
           const y = positionAttr.getY(i);
           const z = positionAttr.getZ(i);
 
-          // ✅ FIX: Flip direction so text isn't mirrored
           const angle = -(x + centerOffset) / radius;
 
-          const newX = Math.sin(angle) * (radius + z); // ✅ USE z to push out
-          const newZ = -Math.cos(angle) * (radius + z); // ✅ USE z to push out
+          // back face is flush with cylinder, front face sticks out by z + offset
+          const radialOffset = radius + z + outwardOffset;
+
+          const newX = Math.sin(angle) * radialOffset;
+          const newZ = -Math.cos(angle) * radialOffset;
 
           positionAttr.setX(i, newX);
           positionAttr.setZ(i, newZ);
@@ -151,7 +150,7 @@
         }
         lastTimestamp = timestamp;
 
-        scene.rotation.y += 0.005;
+        scene.rotation.y = timestamp * -0.001;
         renderer.render(scene, camera);
         requestAnimationFrame(animate);
       }
