@@ -16,17 +16,9 @@
     </style>
   </head>
   <body>
-    <script type="importmap">
-      {
-        "imports": {
-          "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
-          "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/"
-        }
-      }
-    </script>
     <script type="module">
       import * as THREE from "three";
-      import { FontLoader } from "three/addons/loaders/FontLoader.js";
+      import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
       import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
 
       let scene, camera, renderer, rotatingGroup;
