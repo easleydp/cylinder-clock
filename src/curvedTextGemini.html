@@ -20,6 +20,7 @@
       import * as THREE from "three";
       import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
       import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
+      import { TessellateModifier } from "three/addons/modifiers/TessellateModifier.js";
 
       let scene, camera, renderer, rotatingGroup;
       let cylinderMesh, textMesh;
@@ -107,20 +108,33 @@
           const geometryParams = {
             font: font,
             size: textSize,
-            depth: textExtrusion, // This is actually depth/extrusion for TextGeometry
-            curveSegments: 12,
+            depth: textExtrusion, // Extrusion depth
+            curveSegments: 16, // Good base detail for letter shapes
             bevelEnabled: false,
           };
-          const textGeo = new TextGeometry(textContent, geometryParams);
+          let textGeo = new TextGeometry(textContent, geometryParams); // Use 'let' as it will be reassigned
+
+          // --- Apply TessellateModifier to add more detail to faces ---
+          const tessellateModifier = new TessellateModifier(
+            textSize / 24, // maxEdgeLength: e.g., textSize / 5 or a fixed value like 0.4. Adjust as needed.
+            // Smaller values = more detail = more polygons.
+            12 // maxIterations: How many times to repeat the subdivision. Default is often fine.
+          );
+          // TessellateModifier.modify returns a new BufferGeometry
+          textGeo = tessellateModifier.modify(textGeo);
+          // --- End of TessellateModifier application ---
 
           // Calculate text dimensions for centering and mapping
+          // Note: Bounding box should ideally be computed on the original textGeo if its
+          // specific original dimensions are critical for placement logic before tessellation.
+          // However, for centering the tessellated geometry for mapping, using it after is fine.
           textGeo.computeBoundingBox();
           const textBoundingBox = textGeo.boundingBox;
           const textWidth = textBoundingBox.max.x - textBoundingBox.min.x;
-          const textHeight = textBoundingBox.max.y - textBoundingBox.min.y; // Actual height of generated letters
+          const textHeight = textBoundingBox.max.y - textBoundingBox.min.y;
 
           const positions = textGeo.attributes.position.array;
-          const normals = textGeo.attributes.normal.array; // We'll recompute later, but good to be aware of
+          // Normals will be recomputed after deformation anyway
 
           for (let i = 0; i < positions.length / 3; i++) {
             const idx = i * 3;
