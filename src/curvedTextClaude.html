@@ -175,6 +175,9 @@
             textMesh.position.z * 2
           );
 
+          // Rotate text 90 degrees clockwise to make it horizontal
+          textMesh.rotateZ(-Math.PI / 2);
+
           // Center the text
           textMesh.position.x -=
             (textWidth / 2) * Math.cos(angle + Math.PI / 2);
@@ -209,6 +212,9 @@
 
           textMesh.position.set(x, 0, z);
           textMesh.lookAt(x * 2, 0, z * 2);
+
+          // Rotate fallback text 90 degrees clockwise to make it horizontal
+          textMesh.rotateZ(-Math.PI / 2);
 
           cylinder.add(textMesh);
           textMeshes.push(textMesh);
