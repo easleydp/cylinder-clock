@@ -18,25 +18,89 @@
   <body>
     <script type="module">
       import * as THREE from "three";
+      //   import { FontLoader } from "three/addons/loaders/FontLoader.js";
       import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
       import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
       import { TessellateModifier } from "three/addons/modifiers/TessellateModifier.js";
 
       let scene, camera, renderer, rotatingGroup;
-      let cylinderMesh, textMesh;
+      let cylinderMesh; // We don't need individual textMesh variables globally anymore
 
       // Configuration
       const cylinderRadius = 5;
-      const cylinderLength = 30; // This is the 'height' for CylinderGeometry, but it will be laid horizontally
-      const textContent = "WebGL Rocks!";
-      const textSize = 3; // Height of the text characters
-      const textExtrusion = 0.5; // How much the text is "embossed"
+      const cylinderLength = 30;
+      const textSize = 3;
+      const textExtrusion = 0.5;
+      const baseCurveSegments = 16; // Base detail for letter shapes
+
+      // Helper function to generate a text mesh deformed onto the cylinder
+      function generateTextOnCylinder(font, textContentStr, baseAngle) {
+        const geometryParams = {
+          font: font,
+          size: textSize,
+          depth: textExtrusion,
+          curveSegments: baseCurveSegments,
+          bevelEnabled: false,
+        };
+        let textGeo = new TextGeometry(textContentStr, geometryParams);
+
+        const tessellateModifier = new TessellateModifier(
+          textSize / 24, // maxEdgeLength: e.g., textSize / 5 or a fixed value like 0.4. Adjust as needed.
+          // Smaller values = more detail = more polygons.
+          12 // maxIterations: How many times to repeat the subdivision. Default is often fine.
+        );
+        textGeo = tessellateModifier.modify(textGeo);
+
+        textGeo.computeBoundingBox();
+        const textBoundingBox = textGeo.boundingBox;
+        const textWidth = textBoundingBox.max.x - textBoundingBox.min.x;
+        const textHeight = textBoundingBox.max.y - textBoundingBox.min.y;
+
+        const positions = textGeo.attributes.position.array;
+
+        for (let i = 0; i < positions.length / 3; i++) {
+          const idx = i * 3;
+          const originalX = positions[idx];
+          const originalY = positions[idx + 1];
+          const originalZ = positions[idx + 2];
+
+          // Map text's X to cylinder's length (world X-axis), centered
+          const mappedX = originalX - textBoundingBox.min.x - textWidth / 2;
+
+          // Map text's Y (height) and Z (extrusion) to cylinder's curved surface (YZ plane)
+          const verticalOffsetInText =
+            originalY - textBoundingBox.min.y - textHeight / 2;
+          const angleOffsetForCharHeight =
+            verticalOffsetInText / cylinderRadius;
+
+          // Use the provided baseAngle for positioning this text line
+          const currentWrappedAngle = baseAngle - angleOffsetForCharHeight;
+
+          const effectiveRadius = cylinderRadius + originalZ; // originalZ is extrusion
+
+          const mappedY = effectiveRadius * Math.cos(currentWrappedAngle);
+          const mappedZ = effectiveRadius * Math.sin(currentWrappedAngle);
+
+          positions[idx] = mappedX;
+          positions[idx + 1] = mappedY;
+          positions[idx + 2] = mappedZ;
+        }
+
+        textGeo.attributes.position.needsUpdate = true;
+        textGeo.computeVertexNormals();
+
+        // Material will be created once and passed or defined here
+        const textMat = new THREE.MeshStandardMaterial({
+          color: 0xffc107, // A warm yellow/gold
+          metalness: 0.5,
+          roughness: 0.4,
+        });
+
+        return new THREE.Mesh(textGeo, textMat);
+      }
 
       function init() {
-        // Scene
         scene = new THREE.Scene();
-
-        // Camera
         camera = new THREE.PerspectiveCamera(
           75,
           window.innerWidth / window.innerHeight,
@@ -50,13 +114,11 @@
         ); // Positioned to see the front/top
         camera.lookAt(0, 0, 0);
 
-        // Renderer
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(renderer.domElement);
 
-        // Lights
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
@@ -67,10 +129,6 @@
         rotatingGroup = new THREE.Group();
         scene.add(rotatingGroup);
 
-        // Cylinder
-        // CylinderGeometry is created along the Y-axis by default.
-        // We'll rotate the group later if needed, or build geometry assuming final orientation.
-        // Let's make the cylinder's length align with the X-axis for this setup.
         const cylinderGeo = new THREE.CylinderGeometry(
           cylinderRadius,
           cylinderRadius,
@@ -79,7 +137,7 @@
           1
         );
         const cylinderMat = new THREE.MeshStandardMaterial({
-          color: 0x607d8b, // A bluish-grey
+          color: 0x607d8b,
           metalness: 0.3,
           roughness: 0.6,
         });
@@ -88,101 +146,38 @@
         cylinderMesh.rotation.z = Math.PI / 2;
         rotatingGroup.add(cylinderMesh);
 
-        // Font Loading and Text Creation
-        loadFontAndCreateText();
+        loadAndCreateAllTexts();
 
-        // Handle window resize
         window.addEventListener("resize", onWindowResize, false);
-
-        // Start animation
         animate();
       }
 
-      function loadFontAndCreateText() {
+      function loadAndCreateAllTexts() {
         const fontLoader = new FontLoader();
-        // Using a font from Three.js examples. Host your own or use a CDN.
         const fontPath =
           "https://threejs.org/examples/fonts/helvetiker_regular.typeface.json";
 
         fontLoader.load(fontPath, function (font) {
-          const geometryParams = {
-            font: font,
-            size: textSize,
-            depth: textExtrusion, // Extrusion depth
-            curveSegments: 16, // Good base detail for letter shapes
-            bevelEnabled: false,
-          };
-          let textGeo = new TextGeometry(textContent, geometryParams); // Use 'let' as it will be reassigned
-
-          // --- Apply TessellateModifier to add more detail to faces ---
-          const tessellateModifier = new TessellateModifier(
-            textSize / 24, // maxEdgeLength: e.g., textSize / 5 or a fixed value like 0.4. Adjust as needed.
-            // Smaller values = more detail = more polygons.
-            12 // maxIterations: How many times to repeat the subdivision. Default is often fine.
+          // Text 1: "WebGL Rocks!"
+          const textContent1 = "WebGL Rocks!";
+          const baseAngle1 = Math.PI / 2; // Front face (local +Z on YZ plane)
+          const textMesh1 = generateTextOnCylinder(
+            font,
+            textContent1,
+            baseAngle1
           );
-          // TessellateModifier.modify returns a new BufferGeometry
-          textGeo = tessellateModifier.modify(textGeo);
-          // --- End of TessellateModifier application ---
+          rotatingGroup.add(textMesh1);
 
-          // Calculate text dimensions for centering and mapping
-          // Note: Bounding box should ideally be computed on the original textGeo if its
-          // specific original dimensions are critical for placement logic before tessellation.
-          // However, for centering the tessellated geometry for mapping, using it after is fine.
-          textGeo.computeBoundingBox();
-          const textBoundingBox = textGeo.boundingBox;
-          const textWidth = textBoundingBox.max.x - textBoundingBox.min.x;
-          const textHeight = textBoundingBox.max.y - textBoundingBox.min.y;
-
-          const positions = textGeo.attributes.position.array;
-          // Normals will be recomputed after deformation anyway
-
-          for (let i = 0; i < positions.length / 3; i++) {
-            const idx = i * 3;
-            const originalX = positions[idx]; // Corresponds to text's width dimension
-            const originalY = positions[idx + 1]; // Corresponds to text's height dimension
-            const originalZ = positions[idx + 2]; // Corresponds to text's extrusion dimension
-
-            // 1. Map text's X to cylinder's length (which is along world X-axis)
-            // We center the text along the cylinder's length
-            const mappedX = originalX - textBoundingBox.min.x - textWidth / 2;
-
-            // 2. Map text's Y (height) and Z (extrusion) to cylinder's curved surface (YZ plane)
-            // We want the text on the "front" face (positive Z in world coordinates)
-            // The text's original Y dimension (height of letters) will wrap slightly around the cylinder
-            const verticalOffsetInText =
-              originalY - textBoundingBox.min.y - textHeight / 2; // Center char height
-            const angleAroundCylinder = verticalOffsetInText / cylinderRadius;
-
-            // We want the text centered on the +Z face of the cylinder.
-            // In YZ plane, +Z is at angle PI/2 (if +Y is angle 0).
-            // Our text vertical motion (angleAroundCylinder) adjusts this.
-            // A positive verticalOffsetInText (top of letter) should shift angle towards +Y.
-            const targetAngle = Math.PI / 2 - angleAroundCylinder;
-
-            // Embossing: originalZ (extrusion) increases radius
-            const effectiveRadius = cylinderRadius + originalZ;
-
-            const mappedY = effectiveRadius * Math.cos(targetAngle);
-            const mappedZ = effectiveRadius * Math.sin(targetAngle);
-
-            positions[idx] = mappedX;
-            positions[idx + 1] = mappedY;
-            positions[idx + 2] = mappedZ;
-          }
-
-          textGeo.attributes.position.needsUpdate = true;
-          textGeo.computeVertexNormals(); // Crucial for correct lighting after deformation
-
-          const textMat = new THREE.MeshStandardMaterial({
-            color: 0xffc107, // A warm yellow/gold
-            metalness: 0.5,
-            roughness: 0.4,
-          });
-          textMesh = new THREE.Mesh(textGeo, textMat);
-
-          // The text vertices are now calculated for a cylinder oriented along X-axis.
-          // No additional rotation for the textMesh itself needed if cylinderMesh is also X-aligned.
-          rotatingGroup.add(textMesh);
+          // Text 2: "Three.js Rocks!"
+          const textContent2 = "Three.js Rocks!";
+          // Opposite side: add PI (180 degrees) to the first angle
+          const baseAngle2 = Math.PI / 2 + Math.PI; // Back face (local -Z on YZ plane)
+          const textMesh2 = generateTextOnCylinder(
+            font,
+            textContent2,
+            baseAngle2
+          );
+          rotatingGroup.add(textMesh2);
         });
       }
 
@@ -194,13 +189,9 @@
 
       function animate() {
         requestAnimationFrame(animate);
-
-        // Rotate the group around its X-axis (which is the cylinder's length axis)
-        // Negative rotation to make the front face (+Z) roll "upwards" (towards +Y)
         if (rotatingGroup) {
-          rotatingGroup.rotation.x -= 0.005; // Adjust speed as needed
+          rotatingGroup.rotation.x -= 0.005; // Negative speed for "upward" scroll of front face
         }
-
         renderer.render(scene, camera);
       }
 
