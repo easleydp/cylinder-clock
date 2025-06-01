@@ -60,7 +60,7 @@
         const text = "Three.js Rotating Cylinder";
         const radius = 10;
         const depth = 0.1;
-        const size = 2;
+        const size = 1.5;
 
         const textGeometry = new TextGeometry(text, {
           font: font,
@@ -81,16 +81,16 @@
         const positionAttr = textGeometry.attributes.position;
 
         for (let i = 0; i < positionAttr.count; i++) {
-          const x = positionAttr.getX(i); // Along cylinder axis
-          const y = positionAttr.getY(i); // We'll now map this to angle
-          const z = positionAttr.getZ(i); // Text extrusion (depth)
+          const x = positionAttr.getX(i) + centerOffset; // ✅ center text horizontally
+          const y = positionAttr.getY(i);
+          const z = positionAttr.getZ(i);
 
-          const angle = -y / radius;
-          const radialOffset = radius + z + 0.05;
+          const angle = -y / radius; // ✅ flip angle to correct upside-down
+          const radialOffset = radius + z + 0.05; // small emboss outward
 
-          const newX = x; // ✅ X stays flat, cylinder axis
-          const newY = Math.sin(angle) * radialOffset; // ✅ curved
-          const newZ = -Math.cos(angle) * radialOffset; // ✅ curved
+          const newX = x; // runs along cylinder axis
+          const newY = Math.sin(angle) * radialOffset; // curved around cylinder
+          const newZ = -Math.cos(angle) * radialOffset;
 
           positionAttr.setX(i, newX);
           positionAttr.setY(i, newY);
