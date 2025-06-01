@@ -22,23 +22,30 @@
       import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
       import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
       import { TessellateModifier } from "three/addons/modifiers/TessellateModifier.js";
+      import { MathUtils } from "three"; // Import MathUtils for euclideanModulo
 
       let scene, camera, renderer, rotatingGroup;
-      let cylinderMesh; // We don't need individual textMesh variables globally anymore
+      let cylinderMesh;
+      let loadedFont = null; // To store the loaded font globally
+      const textLines = []; // Array to manage our text lines
 
       // Configuration
       const cylinderRadius = 5;
       const cylinderLength = 30;
       const textSize = 3;
-      const textExtrusion = 0.5;
-      const baseCurveSegments = 16; // Base detail for letter shapes
+      const textDepth = 0.5; // Renamed from textExtrusion, used for TextGeometry's depth
+      const baseCurveSegments = 16;
 
-      // Helper function to generate a text mesh deformed onto the cylinder
-      function generateTextOnCylinder(font, textContentStr, baseAngle) {
+      // Base angles for text positioning
+      const baseAngleText1 = Math.PI / 2; // Front top (local +Z on YZ plane initially)
+      const baseAngleText2 = Math.PI / 2 + Math.PI; // Back bottom (local -Z on YZ plane initially)
+
+      // Helper function to generate deformed text BufferGeometry
+      function generateTextGeometryOnCylinder(font, textContentStr, baseAngle) {
         const geometryParams = {
           font: font,
           size: textSize,
-          depth: textExtrusion,
+          depth: textDepth, // Corrected: use 'depth' for extrusion
           curveSegments: baseCurveSegments,
           bevelEnabled: false,
         };
@@ -57,12 +64,11 @@
         const textHeight = textBoundingBox.max.y - textBoundingBox.min.y;
 
         const positions = textGeo.attributes.position.array;
-
         for (let i = 0; i < positions.length / 3; i++) {
           const idx = i * 3;
-          const originalX = positions[idx];
-          const originalY = positions[idx + 1];
-          const originalZ = positions[idx + 2];
+          const originalX = positions[idx],
+            originalY = positions[idx + 1],
+            originalZ = positions[idx + 2];
 
           // Map text's X to cylinder's length (world X-axis), centered
           const mappedX = originalX - textBoundingBox.min.x - textWidth / 2;
@@ -72,31 +78,16 @@
             originalY - textBoundingBox.min.y - textHeight / 2;
           const angleOffsetForCharHeight =
             verticalOffsetInText / cylinderRadius;
-
-          // Use the provided baseAngle for positioning this text line
           const currentWrappedAngle = baseAngle - angleOffsetForCharHeight;
-
-          const effectiveRadius = cylinderRadius + originalZ; // originalZ is extrusion
-
-          const mappedY = effectiveRadius * Math.cos(currentWrappedAngle);
-          const mappedZ = effectiveRadius * Math.sin(currentWrappedAngle);
+          const effectiveRadius = cylinderRadius + originalZ; // originalZ is extrusion depth from TextGeometry
 
           positions[idx] = mappedX;
-          positions[idx + 1] = mappedY;
-          positions[idx + 2] = mappedZ;
+          positions[idx + 1] = effectiveRadius * Math.cos(currentWrappedAngle);
+          positions[idx + 2] = effectiveRadius * Math.sin(currentWrappedAngle);
         }
-
         textGeo.attributes.position.needsUpdate = true;
         textGeo.computeVertexNormals();
-
-        // Material will be created once and passed or defined here
-        const textMat = new THREE.MeshStandardMaterial({
-          color: 0xffc107, // A warm yellow/gold
-          metalness: 0.5,
-          roughness: 0.4,
-        });
-
-        return new THREE.Mesh(textGeo, textMat);
+        return textGeo; // Return the BufferGeometry
       }
 
       function init() {
@@ -119,9 +110,9 @@
         renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(renderer.domElement);
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Slightly increased ambient
         scene.add(ambientLight);
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 2.0); // Slightly increased directional
         directionalLight.position.set(5, 10, 7.5);
         scene.add(directionalLight);
 
@@ -158,26 +149,58 @@
           "https://threejs.org/examples/fonts/helvetiker_regular.typeface.json";
 
         fontLoader.load(fontPath, function (font) {
-          // Text 1: "WebGL Rocks!"
-          const textContent1 = "WebGL Rocks!";
-          const baseAngle1 = Math.PI / 2; // Front face (local +Z on YZ plane)
-          const textMesh1 = generateTextOnCylinder(
-            font,
-            textContent1,
-            baseAngle1
-          );
-          rotatingGroup.add(textMesh1);
+          loadedFont = font; // Store the loaded font globally
 
-          // Text 2: "Three.js Rocks!"
-          const textContent2 = "Three.js Rocks!";
-          // Opposite side: add PI (180 degrees) to the first angle
-          const baseAngle2 = Math.PI / 2 + Math.PI; // Back face (local -Z on YZ plane)
-          const textMesh2 = generateTextOnCylinder(
-            font,
-            textContent2,
-            baseAngle2
+          const commonTextMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffc107,
+            metalness: 0.5,
+            roughness: 0.4,
+          });
+
+          // Text Line 1 Setup
+          const textContentStrings1 = [
+            "WebGL Magic!",
+            "Rotate Me!",
+            "Front View Text",
+          ];
+          const initialGeo1 = generateTextGeometryOnCylinder(
+            loadedFont,
+            textContentStrings1[0],
+            baseAngleText1
           );
-          rotatingGroup.add(textMesh2);
+          const mesh1 = new THREE.Mesh(initialGeo1, commonTextMaterial);
+          rotatingGroup.add(mesh1);
+          textLines.push({
+            mesh: mesh1,
+            contentStrings: textContentStrings1,
+            currentStringIdx: 0,
+            baseAngle: baseAngleText1,
+            isRoundTheBack: Math.cos(0) > 0.1, // Initial check at angle 0
+            needsUpdate: false,
+          });
+
+          // Text Line 2 Setup
+          const textContentStrings2 = [
+            "Three.js Power!",
+            "See The Back?",
+            "More Content Here",
+          ];
+          const initialGeo2 = generateTextGeometryOnCylinder(
+            loadedFont,
+            textContentStrings2[0],
+            baseAngleText2
+          );
+          const mesh2 = new THREE.Mesh(initialGeo2, commonTextMaterial);
+          rotatingGroup.add(mesh2);
+          textLines.push({
+            mesh: mesh2,
+            contentStrings: textContentStrings2,
+            currentStringIdx: 0,
+            baseAngle: baseAngleText2,
+            isRoundTheBack: Math.cos(0) < -0.1, // Initial check at angle 0 (for local -Z facing part)
+            needsUpdate: false,
+          });
+          console.log("Text lines initialized:", textLines);
         });
       }
 
@@ -189,9 +212,61 @@
 
       function animate() {
         requestAnimationFrame(animate);
-        if (rotatingGroup) {
-          rotatingGroup.rotation.x -= 0.005; // Negative speed for "upward" scroll of front face
+
+        if (loadedFont && textLines.length > 0) {
+          // Ensure font and text lines are ready
+          const rotationAngle = rotatingGroup.rotation.x;
+          // Normalize angle to [0, 2PI) to make cos calculations predictable
+          const normalizedAngle = MathUtils.euclideanModulo(
+            rotationAngle,
+            2 * Math.PI
+          );
+
+          textLines.forEach((line) => {
+            let textIsCurrentlyRoundTheBack;
+            // Determine if "round the back" based on its original local Z orientation and current rotation
+            // Text at baseAngleText1 is on local +Z side of cylinder
+            // Text at baseAngleText2 is on local -Z side of cylinder
+            if (line.baseAngle === baseAngleText1) {
+              // Originally local +Z
+              textIsCurrentlyRoundTheBack = Math.cos(normalizedAngle) > 0.1; // World Z positive
+            } else {
+              // Originally local -Z
+              textIsCurrentlyRoundTheBack = Math.cos(normalizedAngle) < -0.1; // World Z positive (because local -Z * cos becomes positive)
+            }
+
+            if (!line.isRoundTheBack && textIsCurrentlyRoundTheBack) {
+              // Transitioned from view (or side) to fully round the back
+              line.needsUpdate = true;
+              // console.log(`Text for baseAngle ${line.baseAngle.toFixed(2)} went to back, scheduling update.`);
+            }
+            line.isRoundTheBack = textIsCurrentlyRoundTheBack;
+
+            if (line.needsUpdate && line.isRoundTheBack) {
+              line.currentStringIdx =
+                (line.currentStringIdx + 1) % line.contentStrings.length;
+              const newTextContent = line.contentStrings[line.currentStringIdx];
+
+              console.log(
+                `Updating text for baseAngle ${line.baseAngle.toFixed(
+                  2
+                )} to: "${newTextContent}"`
+              );
+
+              const newGeo = generateTextGeometryOnCylinder(
+                loadedFont,
+                newTextContent,
+                line.baseAngle
+              );
+
+              line.mesh.geometry.dispose(); // IMPORTANT: Dispose old geometry to free GPU memory
+              line.mesh.geometry = newGeo; // Assign new geometry
+              line.needsUpdate = false;
+            }
+          });
         }
+
+        rotatingGroup.rotation.x -= 0.005;
         renderer.render(scene, camera);
       }
 
