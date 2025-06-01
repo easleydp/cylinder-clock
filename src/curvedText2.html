@@ -81,22 +81,21 @@
         const positionAttr = textGeometry.attributes.position;
 
         for (let i = 0; i < positionAttr.count; i++) {
-          const x = positionAttr.getX(i);
-          const y = positionAttr.getY(i);
-          const z = positionAttr.getZ(i);
+          const x = positionAttr.getX(i); // Along cylinder axis
+          const y = positionAttr.getY(i); // We'll now map this to angle
+          const z = positionAttr.getZ(i); // Text extrusion (depth)
 
-          const angle = (x + centerOffset) / radius; // ✅ correct winding
+          const angle = -y / radius;
           const radialOffset = radius + z + 0.05;
 
-          const newX = Math.sin(angle) * radialOffset;
-          const newY = -y; // ✅ flip Y to make text upright
-          const newZ = -Math.cos(angle) * radialOffset;
+          const newX = x; // ✅ X stays flat, cylinder axis
+          const newY = Math.sin(angle) * radialOffset; // ✅ curved
+          const newZ = -Math.cos(angle) * radialOffset; // ✅ curved
 
           positionAttr.setX(i, newX);
           positionAttr.setY(i, newY);
           positionAttr.setZ(i, newZ);
         }
-
         positionAttr.needsUpdate = true;
         textGeometry.computeVertexNormals();
 
