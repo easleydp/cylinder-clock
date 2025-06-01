@@ -15,8 +15,8 @@
         height: 100vh;
       }
       #clockContainer {
-        width: 1200px;
-        height: 400px; /* Typical 3:1 aspect ratio */
+        width: 600px;
+        height: 200px; /* Typical 3:1 aspect ratio */
         border: 1px solid #ccc;
       }
       /* Example of a different aspect ratio div */

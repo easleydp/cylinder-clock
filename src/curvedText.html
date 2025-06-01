@@ -92,10 +92,11 @@
           const y = positionAttr.getY(i);
           const z = positionAttr.getZ(i);
 
-          //const angle = (x + centerOffset) / radius;
+          // ✅ FIX: Flip direction so text isn't mirrored
           const angle = -(x + centerOffset) / radius;
-          const newX = Math.sin(angle) * radius;
-          const newZ = -Math.cos(angle) * radius;
+
+          const newX = Math.sin(angle) * (radius + z); // ✅ USE z to push out
+          const newZ = -Math.cos(angle) * (radius + z); // ✅ USE z to push out
 
           positionAttr.setX(i, newX);
           positionAttr.setZ(i, newZ);
@@ -104,15 +105,19 @@
         positionAttr.needsUpdate = true;
         textGeometry.computeVertexNormals();
 
-        const material = new THREE.MeshStandardMaterial({ color: 0xffaa00 });
+        const material = new THREE.MeshStandardMaterial({
+          color: 0xffaa00,
+          metalness: 0.3,
+          roughness: 0.4,
+        });
         const textMesh = new THREE.Mesh(textGeometry, material);
         textMesh.position.y = 0;
         scene.add(textMesh);
 
-        // Add the base cylinder for visual context
+        // Add the base cylinder
         const cylinderGeometry = new THREE.CylinderGeometry(
-          radius - 0.1,
-          radius - 0.1,
+          radius,
+          radius,
           10,
           64,
           1,
@@ -127,13 +132,28 @@
         const cylinder = new THREE.Mesh(cylinderGeometry, cylinderMaterial);
         scene.add(cylinder);
 
-        animate();
+        requestAnimationFrame(animate);
       }
 
-      function animate() {
-        requestAnimationFrame(animate);
+      let lastTimestamp = 0;
+      function animate(timestamp) {
+        const delta = timestamp - lastTimestamp;
+        // Throttle animation loop to save CPU in case monitor refresh rate is too fast
+        const maxRefreshRateHz = 30;
+        if (delta < 1000 / maxRefreshRateHz) {
+          requestAnimationFrame(animate);
+          return;
+        }
+        // Show actual refresh rate in console
+        if (lastTimestamp !== -1) {
+          const refreshRate = Math.round(1000 / delta);
+          console.log(`Refresh rate: ${refreshRate} Hz`);
+        }
+        lastTimestamp = timestamp;
+
         scene.rotation.y += 0.005;
         renderer.render(scene, camera);
+        requestAnimationFrame(animate);
       }
 
       function onWindowResize() {
