@@ -33,31 +33,44 @@
       const cylinderRadius = 5;
       const cylinderLength = 30;
       const textSize = 3;
-      const textDepth = 0.5; // Renamed from textExtrusion, used for TextGeometry's depth
+      const textDepth = 0.1;
       const baseCurveSegments = 16;
 
       // Base angles for text positioning
-      const baseAngleText1 = Math.PI / 2; // Front top (local +Z on YZ plane initially)
-      const baseAngleText2 = Math.PI / 2 + Math.PI; // Back bottom (local -Z on YZ plane initially)
+      //   const baseAngleText1 = Math.PI / 2; // Front top (local +Z on YZ plane initially)
+      //   const baseAngleText2 = Math.PI / 2 + Math.PI; // Back bottom (local -Z on YZ plane initially)
+      const baseAngleText1 = Math.PI; // Front top (local +Z on YZ plane initially)
+      const baseAngleText2 = 0; // Back bottom (local -Z on YZ plane initially)
 
       // Helper function to generate deformed text BufferGeometry
-      function generateTextGeometryOnCylinder(font, textContentStr, baseAngle) {
+      async function generateTextGeometryOnCylinder(
+        font,
+        textContentStr,
+        baseAngle
+      ) {
         const geometryParams = {
           font: font,
           size: textSize,
-          depth: textDepth, // Corrected: use 'depth' for extrusion
+          depth: textDepth,
           curveSegments: baseCurveSegments,
           bevelEnabled: false,
         };
         let textGeo = new TextGeometry(textContentStr, geometryParams);
 
+        await scheduler.yield();
         const tessellateModifier = new TessellateModifier(
           textSize / 24, // maxEdgeLength: e.g., textSize / 5 or a fixed value like 0.4. Adjust as needed.
           // Smaller values = more detail = more polygons.
           12 // maxIterations: How many times to repeat the subdivision. Default is often fine.
         );
+        // const tessellateModifier = new TessellateModifier(
+        //   textSize / 12, // maxEdgeLength: e.g., textSize / 5 or a fixed value like 0.4. Adjust as needed.
+        //   // Smaller values = more detail = more polygons.
+        //   4 // maxIterations: How many times to repeat the subdivision. Default is often fine.
+        // );
         textGeo = tessellateModifier.modify(textGeo);
 
+        await scheduler.yield();
         textGeo.computeBoundingBox();
         const textBoundingBox = textGeo.boundingBox;
         const textWidth = textBoundingBox.max.x - textBoundingBox.min.x;
@@ -86,11 +99,12 @@
           positions[idx + 2] = effectiveRadius * Math.sin(currentWrappedAngle);
         }
         textGeo.attributes.position.needsUpdate = true;
+        await scheduler.yield();
         textGeo.computeVertexNormals();
-        return textGeo; // Return the BufferGeometry
+        return textGeo;
       }
 
-      function init() {
+      async function init() {
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(
           75,
@@ -140,15 +154,15 @@
         loadAndCreateAllTexts();
 
         window.addEventListener("resize", onWindowResize, false);
-        animate();
+        animate(0);
       }
 
-      function loadAndCreateAllTexts() {
+      async function loadAndCreateAllTexts() {
         const fontLoader = new FontLoader();
         const fontPath =
           "https://threejs.org/examples/fonts/helvetiker_regular.typeface.json";
 
-        fontLoader.load(fontPath, function (font) {
+        fontLoader.load(fontPath, async function (font) {
           loadedFont = font; // Store the loaded font globally
 
           const commonTextMaterial = new THREE.MeshStandardMaterial({
@@ -163,7 +177,7 @@
             "Rotate Me!",
             "Front View Text",
           ];
-          const initialGeo1 = generateTextGeometryOnCylinder(
+          const initialGeo1 = await generateTextGeometryOnCylinder(
             loadedFont,
             textContentStrings1[0],
             baseAngleText1
@@ -185,7 +199,7 @@
             "See The Back?",
             "More Content Here",
           ];
-          const initialGeo2 = generateTextGeometryOnCylinder(
+          const initialGeo2 = await generateTextGeometryOnCylinder(
             loadedFont,
             textContentStrings2[0],
             baseAngleText2
@@ -210,8 +224,21 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
       }
 
-      function animate() {
-        requestAnimationFrame(animate);
+      let lastTimestamp = 0;
+      async function animate(timestamp) {
+        const delta = timestamp - lastTimestamp;
+        // Throttle animation loop to save CPU in case monitor refresh rate is too fast
+        const maxRefreshRateHz = 30;
+        if (delta < 1000 / maxRefreshRateHz) {
+          requestAnimationFrame(animate);
+          return;
+        }
+        // // Show actual refresh rate in console
+        // if (lastTimestamp !== -1) {
+        //   const refreshRate = Math.round(1000 / delta);
+        //   console.log(`Refresh rate: ${refreshRate} Hz`);
+        // }
+        lastTimestamp = timestamp;
 
         if (loadedFont && textLines.length > 0) {
           // Ensure font and text lines are ready
@@ -222,7 +249,7 @@
             2 * Math.PI
           );
 
-          textLines.forEach((line) => {
+          textLines.forEach(async (line) => {
             let textIsCurrentlyRoundTheBack;
             // Determine if "round the back" based on its original local Z orientation and current rotation
             // Text at baseAngleText1 is on local +Z side of cylinder
@@ -253,12 +280,14 @@
                 )} to: "${newTextContent}"`
               );
 
-              const newGeo = generateTextGeometryOnCylinder(
+              await scheduler.yield();
+              const newGeo = await generateTextGeometryOnCylinder(
                 loadedFont,
                 newTextContent,
                 line.baseAngle
               );
 
+              await scheduler.yield();
               line.mesh.geometry.dispose(); // IMPORTANT: Dispose old geometry to free GPU memory
               line.mesh.geometry = newGeo; // Assign new geometry
               line.needsUpdate = false;
@@ -268,6 +297,8 @@
 
         rotatingGroup.rotation.x -= 0.005;
         renderer.render(scene, camera);
+
+        requestAnimationFrame(animate);
       }
 
       init();

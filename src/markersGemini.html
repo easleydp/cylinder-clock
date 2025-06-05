@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rotating Cylinder with Markers</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/"
+        }
+      }
+    </script>
+    <script type="module">
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+      let scene, camera, renderer, cylinderGroup;
+      let cylinder, cylinderMaterial;
+
+      const cylinderRadius = 5;
+      const cylinderHeight = 20;
+      const cylinderRadialSegments = 32;
+
+      const majorMarkerColor = 0xff0000; // Red
+      const minorMarkerColor = 0x0000ff; // Blue
+      const markerWidth = 0.2;
+      const markerHeight = 0.5; // How tall the marker is (extends from cylinder surface)
+      const markerDepth = 0.8; // How long the marker is along the cylinder's circumference
+
+      function init() {
+        // Scene
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87ceeb); // Sky blue background
+
+        // Camera
+        camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        camera.position.set(0, 5, 15); // Positioned to see the cylinder side-on
+
+        // Renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 10, 7.5);
+        scene.add(directionalLight);
+
+        // Cylinder Group - this will hold the cylinder and all markers
+        cylinderGroup = new THREE.Group();
+        scene.add(cylinderGroup);
+
+        // Cylinder Geometry and Material
+        const cylinderGeometry = new THREE.CylinderGeometry(
+          cylinderRadius,
+          cylinderRadius,
+          cylinderHeight,
+          cylinderRadialSegments
+        );
+        cylinderMaterial = new THREE.MeshStandardMaterial({
+          color: 0x00ff00,
+          metalness: 0.3,
+          roughness: 0.6,
+        }); // Green
+        cylinder = new THREE.Mesh(cylinderGeometry, cylinderMaterial);
+
+        // Rotate cylinder to be horizontal (around Z-axis, as it's initially aligned with Y)
+        cylinder.rotation.z = Math.PI / 2;
+        cylinderGroup.add(cylinder);
+
+        // Position the cylinder group so parts are to the left and right of camera's initial view
+        // The cylinder's center is at (0,0,0) within cylinderGroup.
+        // The cylinder itself extends from -cylinderHeight/2 to +cylinderHeight/2 along its local X axis (after rotation)
+        // No specific group positioning needed if camera is looking at origin and cylinder is long enough.
+
+        // Create Markers
+        createMarkers();
+
+        // Controls (optional, for interactivity)
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // Handle window resize
+        window.addEventListener("resize", onWindowResize, false);
+
+        animate();
+      }
+
+      function createMarkers() {
+        const numMajorMarkers = 5;
+        const numMinorMarkersBetweenMajor = 4;
+        const totalMarkersPerEnd =
+          numMajorMarkers * (1 + numMinorMarkersBetweenMajor); // 5 * (1+4) = 25
+
+        const angleIncrement = (2 * Math.PI) / totalMarkersPerEnd; // Angle for each marker position
+
+        const markerMaterialMajor = new THREE.MeshStandardMaterial({
+          color: majorMarkerColor,
+          metalness: 0.5,
+          roughness: 0.4,
+        });
+        const markerMaterialMinor = new THREE.MeshStandardMaterial({
+          color: minorMarkerColor,
+          metalness: 0.5,
+          roughness: 0.4,
+        });
+
+        // Create markers for both ends
+        const cylinderEndsZ = [-cylinderHeight / 2, cylinderHeight / 2]; // Positions along the cylinder's original Y-axis (now X after rotation)
+
+        cylinderEndsZ.forEach((endZOffset) => {
+          for (let i = 0; i < totalMarkersPerEnd; i++) {
+            const isMajor = i % (numMinorMarkersBetweenMajor + 1) === 0;
+            const material = isMajor
+              ? markerMaterialMajor
+              : markerMaterialMinor;
+            const effectiveMarkerHeight = isMajor
+              ? markerHeight * 1.2
+              : markerHeight; // Major markers slightly taller
+
+            const markerGeometry = new THREE.BoxGeometry(
+              markerDepth,
+              effectiveMarkerHeight,
+              markerWidth
+            );
+            const marker = new THREE.Mesh(markerGeometry, material);
+
+            const angle = i * angleIncrement;
+
+            // Position markers on the circumference
+            // The cylinder is rotated 90 degrees around Z. Its axis is now along X.
+            // The original cylinder caps were in the XZ plane (when cylinder axis was Y).
+            // After rotation, caps are in the YZ plane.
+            // We need to place markers around the X-axis of the cylinderGroup.
+
+            // Calculate position relative to cylinder's local coordinates BEFORE group rotation
+            const xPosCyl = endZOffset; // This is along the cylinder's length (now group's X axis)
+            const yPosCyl =
+              (cylinderRadius + effectiveMarkerHeight / 2) * Math.cos(angle); // On the circumference, accounting for marker height
+            const zPosCyl =
+              (cylinderRadius + effectiveMarkerHeight / 2) * Math.sin(angle); // On the circumference
+
+            marker.position.set(xPosCyl, yPosCyl, zPosCyl);
+
+            // Orient the marker
+            // The marker's 'depth' (BoxGeometry's x) should be circumferential.
+            // The marker's 'height' (BoxGeometry's y) should be radial.
+            // The marker's 'width' (BoxGeometry's z) should be along the cylinder's length.
+
+            // First, align the marker's local Y-axis (its height) with the radius
+            marker.lookAt(new THREE.Vector3(xPosCyl, 0, 0)); // Look towards the cylinder's axis at that end
+
+            // Then, rotate it so its depth is along the circumference
+            // We want the marker's local X-axis (depth) to be tangential
+            // And its local Z-axis (width) to be parallel to the cylinder's main axis.
+
+            // The lookAt operation already aligns the marker's local -Z axis with the vector from its position to (xPosCyl, 0, 0).
+            // We need to rotate it so its "height" (local Y) points outwards and "depth" (local X) is tangential.
+
+            // No, lookAt points the local +Z axis TOWARDS the target.
+            // If we want the marker's height (Y) to be radial, we can rotate around its local Z then local X or Y.
+
+            // Alternative: simpler orientation by rotating around the cylinder's main axis (X-axis of the group)
+            marker.rotation.x = angle; // This rotates the marker around the cylinder's main axis
+            marker.rotation.y = Math.PI / 2; // This makes the marker's original 'width' (now depth) align with the cylinder length
+
+            cylinderGroup.add(marker);
+          }
+        });
+      }
+
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+
+        // Rotate the entire group around its X-axis (which is the cylinder's horizontal axis)
+        // The side facing the camera (positive Z in world space initially for front of cylinder) should rotate up.
+        // If camera is at +Z, "up" means rotating towards +Y in world space.
+        // The cylinder's geometry has its caps in the YZ plane (after initial 90deg Z rotation).
+        // We want to rotate around the X-axis of the cylinderGroup.
+        // A positive rotation around X will make the +Y side move towards +Z, and +Z side move towards -Y.
+        // This means the part initially at +Z (facing camera) will rotate down.
+        // So we need a negative rotation rate for the "side facing camera rotating up".
+        cylinderGroup.rotation.x -= 0.005;
+
+        renderer.render(scene, camera);
+      }
+
+      init();
+    </script>
+  </body>
+</html>
