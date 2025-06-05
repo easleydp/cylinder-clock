@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Rotating Cylinder with Deformed Markers</title>
+    <title>Rotating Cylinder with Deformed Markers (Z-Fighting Fix)</title>
     <style>
       body {
         margin: 0;
@@ -34,24 +34,23 @@
       const cylinderHeight = 20;
       const cylinderRadialSegments = 64;
 
-      const markerColor = 0xaaaaaa;
+      const markerColor = 0x444444;
       const markerRadialHeight = 0.1; // Thickness of the marker
 
-      const minorMarkerCircumferentialLength = 0.5;
-      const minorMarkerAxialWidth = 0.3; // Width along the cylinder's length
+      const minorMarkerCircumferentialLength = 0.4;
+      const minorMarkerAxialWidth = 0.5; // Width along the cylinder's length
 
       const majorMarkerCircumferentialLength =
         minorMarkerCircumferentialLength * 1.6;
       const majorMarkerAxialWidth = minorMarkerAxialWidth * 1.4;
 
       const markerEndBuffer =
-        Math.max(majorMarkerAxialWidth, minorMarkerAxialWidth) / 2 + 0.1;
+        Math.max(majorMarkerAxialWidth, minorMarkerAxialWidth) / 2 + 0.02;
 
       const markerMaterial = new THREE.MeshStandardMaterial({
         color: markerColor,
-        metalness: 0.8,
-        roughness: 0.3,
-        // side: THREE.DoubleSide // Useful for debugging geometry
+        metalness: 0.4,
+        roughness: 0.5,
       });
 
       function createDeformedMarkerGeometry(
@@ -64,12 +63,17 @@
       ) {
         const geometry = new THREE.BufferGeometry();
 
-        const topRadius = baseCylinderRadius + radialHeight;
-        const bottomRadius = baseCylinderRadius;
+        const epsilon = 0.001; // Small offset to prevent Z-fighting
 
-        // Calculate angular width based on the circumferential length at the marker's mid-radius
-        const markerMidRadius = baseCylinderRadius + radialHeight / 2;
-        const angularWidth = circumferentialLength / markerMidRadius;
+        // The marker's bottom surface will be at baseCylinderRadius + epsilon
+        // The marker's top surface will be at baseCylinderRadius + epsilon + radialHeight
+        const actualBottomRadius = baseCylinderRadius + epsilon;
+        const actualTopRadius = actualBottomRadius + radialHeight;
+
+        // Calculate angular width based on the desired circumferential length
+        // at the marker's intended visual mid-radius (before epsilon offset for Z-fighting)
+        const visualMidRadius = baseCylinderRadius + radialHeight / 2;
+        const angularWidth = circumferentialLength / visualMidRadius;
 
         const angleStart = markerCenterAngle - angularWidth / 2;
         const angleEnd = markerCenterAngle + angularWidth / 2;
@@ -77,88 +81,45 @@
         const xStart = markerCenterX - axialWidth / 2;
         const xEnd = markerCenterX + axialWidth / 2;
 
+        // prettier-ignore
         const vertices = new Float32Array([
-          // Bottom face
-          xStart,
-          bottomRadius * Math.cos(angleStart),
-          bottomRadius * Math.sin(angleStart), // p0
-          xEnd,
-          bottomRadius * Math.cos(angleStart),
-          bottomRadius * Math.sin(angleStart), // p1
-          xStart,
-          bottomRadius * Math.cos(angleEnd),
-          bottomRadius * Math.sin(angleEnd), // p2
-          xEnd,
-          bottomRadius * Math.cos(angleEnd),
-          bottomRadius * Math.sin(angleEnd), // p3
+            // Bottom face (using actualBottomRadius)
+            xStart, actualBottomRadius * Math.cos(angleStart), actualBottomRadius * Math.sin(angleStart), // p0
+            xEnd,   actualBottomRadius * Math.cos(angleStart), actualBottomRadius * Math.sin(angleStart), // p1
+            xStart, actualBottomRadius * Math.cos(angleEnd),   actualBottomRadius * Math.sin(angleEnd),   // p2
+            xEnd,   actualBottomRadius * Math.cos(angleEnd),   actualBottomRadius * Math.sin(angleEnd),   // p3
 
-          // Top face
-          xStart,
-          topRadius * Math.cos(angleStart),
-          topRadius * Math.sin(angleStart), // p4
-          xEnd,
-          topRadius * Math.cos(angleStart),
-          topRadius * Math.sin(angleStart), // p5
-          xStart,
-          topRadius * Math.cos(angleEnd),
-          topRadius * Math.sin(angleEnd), // p6
-          xEnd,
-          topRadius * Math.cos(angleEnd),
-          topRadius * Math.sin(angleEnd), // p7
+            // Top face (using actualTopRadius)
+            xStart, actualTopRadius * Math.cos(angleStart), actualTopRadius * Math.sin(angleStart), // p4
+            xEnd,   actualTopRadius * Math.cos(angleStart), actualTopRadius * Math.sin(angleStart), // p5
+            xStart, actualTopRadius * Math.cos(angleEnd),   actualTopRadius * Math.sin(angleEnd),   // p6
+            xEnd,   actualTopRadius * Math.cos(angleEnd),   actualTopRadius * Math.sin(angleEnd)    // p7
         ]);
 
-        // Order: p0, p1, p2, p3 (bottom from angleStart to angleEnd)
-        //        p4, p5, p6, p7 (top    from angleStart to angleEnd)
+        // prettier-ignore
+        // Gemini: "Getting these indices perfect often involves some trial and error and visualization.
+        //   If lighting still looks odd on certain faces, these indices are the first place to check."
+        // and: "Consistent Counter-Clockwise (CCW) winding for faces (when viewed from the "outside" of
+        //   that face) is crucial for geometry.computeVertexNormals() to generate correct,
+        //   outward-pointing normals. Incorrect winding can lead to faces appearing dark or invisible."
         const indices = [
-          // Bottom face (viewed from outside, e.g. under the cylinder, assuming CCW winding for outward normal)
-          0,
-          2,
-          1,
-          1,
-          2,
-          3, // If normals point "inward" to cylinder axis (traditional bottom)
-          // For computeVertexNormals, consistent CCW when viewed from "outside" the marker volume
-          // Let's use: 0,1,3, 0,3,2 (CCW from "below" marker, so normal points towards -Y local / towards cylinder axis)
+            // Bottom face (CCW from "below" marker, normal points towards cylinder axis / "down" locally)
+            0, 1, 3,   0, 3, 2, // Quad p0-p1-p3-p2
 
-          // Top face (CCW from "above" marker, normal points radially out from cylinder)
-          4,
-          5,
-          7,
-          4,
-          7,
-          6,
+            // Top face (CCW from "above" marker, normal points radially out from cylinder / "up" locally)
+            4, 6, 7,   4, 7, 5, // Quad p4-p6-p7-p5
 
-          // Side face at angleStart (CCW from "outside" that face)
-          0,
-          4,
-          5,
-          0,
-          5,
-          1,
+            // Side face at angleStart ("front" side along circumference, CCW from outside this face)
+            0, 4, 5,   0, 5, 1, // Quad p0-p4-p5-p1
 
-          // Side face at angleEnd
-          3,
-          7,
-          6,
-          3,
-          6,
-          2, // Adjusted for CCW when looking at this face from outside
+            // Side face at angleEnd ("back" side along circumference, CCW from outside this face)
+            3, 6, 2,   3, 7, 6, // Quad p3-p2-p6-p7 (note vertex order for CCW)
 
-          // Side face at xStart (axial)
-          2,
-          6,
-          4,
-          2,
-          4,
-          0, // Adjusted
+            // Side face at xStart (axial "left", CCW from outside this face)
+            0, 2, 6,   0, 6, 4, // Quad p0-p2-p6-p4
 
-          // Side face at xEnd (axial)
-          1,
-          5,
-          7,
-          1,
-          7,
-          3,
+            // Side face at xEnd (axial "right", CCW from outside this face)
+            1, 5, 7,   1, 7, 3  // Quad p1-p5-p7-p3
         ];
 
         geometry.setAttribute(
@@ -181,7 +142,7 @@
           0.1,
           1000
         );
-        camera.position.set(0, cylinderRadius * 1.2, cylinderHeight * 0.75); // Adjusted camera
+        camera.position.set(0, cylinderRadius * 1.2, cylinderHeight * 0.75);
         camera.lookAt(0, 0, 0);
 
         renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -192,6 +153,7 @@
         scene.add(ambientLight);
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
         directionalLight.position.set(10, 15, 10);
+        directionalLight.castShadow = true; // Optional: for better lighting
         scene.add(directionalLight);
         const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
         directionalLight2.position.set(-10, -5, -10);
@@ -272,10 +234,25 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
       }
 
-      function animate() {
-        requestAnimationFrame(animate);
+      let lastTimestamp = 0;
+      function animate(timestamp) {
+        const delta = timestamp - lastTimestamp;
+        // Throttle animation loop to save CPU in case monitor refresh rate is too fast
+        const maxRefreshRateHz = 50;
+        if (delta < 1000 / maxRefreshRateHz) {
+          requestAnimationFrame(animate);
+          return;
+        }
+        // Show actual refresh rate in console
+        if (lastTimestamp !== -1) {
+          const refreshRate = Math.round(1000 / delta);
+          console.log(`Refresh rate: ${refreshRate} Hz`);
+        }
+        lastTimestamp = timestamp;
+
         cylinderGroup.rotation.x -= 0.005;
         renderer.render(scene, camera);
+        requestAnimationFrame(animate);
       }
 
       init();
