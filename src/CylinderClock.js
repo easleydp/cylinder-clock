@@ -129,10 +129,13 @@ class CylinderClock {
     });
   }
 
+  /**
+   * Loads textures for cylinder. When all loaded, calls the supplied callback with map of textures keyed by texture name.
+   */
   _loadTextures(callback) {
     const folder = "Marble_Carrara_003_SD";
     const fileStem = "Marble_Carrara_003_";
-    const texturePaths = {
+    const fileTails = {
       texture2AO: "OCC.jpg",
       textureMetal: null,
       textureRough: "ROUGH.jpg",
@@ -143,7 +146,7 @@ class CylinderClock {
 
     const loader = new THREE.TextureLoader();
     // Create array of promises, each resolving to `[key, texture|null]`
-    const promises = Object.entries(texturePaths).reduce((accum, currVal) => {
+    const promises = Object.entries(fileTails).reduce((accum, currVal) => {
       accum.push(
         new Promise((resolve, reject) => {
           const [key, fileTail] = currVal;
