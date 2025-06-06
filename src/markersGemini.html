@@ -96,12 +96,10 @@
             xEnd,   actualTopRadius * Math.cos(angleEnd),   actualTopRadius * Math.sin(angleEnd)    // p7
         ]);
 
+        // Consistent Counter-Clockwise (CCW) winding for faces (when viewed from the "outside" of
+        // that face) is crucial for geometry.computeVertexNormals() to generate correct,
+        // outward-pointing normals. Incorrect winding can lead to faces appearing dark or invisible.
         // prettier-ignore
-        // Gemini: "Getting these indices perfect often involves some trial and error and visualization.
-        //   If lighting still looks odd on certain faces, these indices are the first place to check."
-        // and: "Consistent Counter-Clockwise (CCW) winding for faces (when viewed from the "outside" of
-        //   that face) is crucial for geometry.computeVertexNormals() to generate correct,
-        //   outward-pointing normals. Incorrect winding can lead to faces appearing dark or invisible."
         const indices = [
             // Bottom face (CCW from "below" marker, normal points towards cylinder axis / "down" locally)
             0, 1, 3,   0, 3, 2, // Quad p0-p1-p3-p2
@@ -238,7 +236,7 @@
       function animate(timestamp) {
         const delta = timestamp - lastTimestamp;
         // Throttle animation loop to save CPU in case monitor refresh rate is too fast
-        const maxRefreshRateHz = 50;
+        const maxRefreshRateHz = 30;
         if (delta < 1000 / maxRefreshRateHz) {
           requestAnimationFrame(animate);
           return;

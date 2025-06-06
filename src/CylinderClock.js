@@ -89,22 +89,22 @@ class CylinderClock {
 
     // Object
     const geometry = new THREE.CylinderGeometry(1, 1, 7, 50, 50, true);
-    _loadTextures((textures) => {
+    this._loadTextures((textures) => {
       this.textures = textures;
 
       const material = new THREE.MeshStandardMaterial({
-        map: textureColor,
-        normalMap: textureNormal,
+        map: textures.textureColor,
+        normalMap: textures.textureNormal,
         // How much the normal map affects the material. Typical ranges are 0-1. Default is a Vector2 set to (1,1).
         normalScale: new THREE.Vector2(1, 1),
-        displacementMap: textureHeight,
+        displacementMap: textures.textureHeight,
         displacementScale: 0.1, // How much the displacement map affects the mesh
         displacementBias: 0, // Added to the scaled sample of the displacement map
-        roughnessMap: textureRough,
+        roughnessMap: textures.textureRough,
         roughness: 0.35, // 0.0 means perfectly shiny, 0.0 means fully matt
-        aoMap: texture2AO,
+        aoMap: textures.texture2AO,
         aoMapIntensity: 1, // Intensity of the ambient occlusion effect. Range is 0-1, where 0 disables ambient occlusion
-        // metalnessMap: textureMetal,
+        metalnessMap: textures.textureMetal,
         // How much the material is like a metal. Non-metallic materials such as wood or stone use 0.0, metallic use 1.0,
         // with nothing (usually) in between. Default is 0.0. A value between 0.0 and 1.0 could be used for a rusty metal
         // look. If metalnessMap is also provided, both values are multiplied.
@@ -112,6 +112,7 @@ class CylinderClock {
         color: 0xffffff, // Base color, texture will dominate
         side: THREE.FrontSide, // Render only front
       });
+
       this.mesh = new THREE.Mesh(geometry, material);
 
       this.mesh.geometry.attributes.uv2 = this.mesh.geometry.attributes.uv;
@@ -129,49 +130,48 @@ class CylinderClock {
   }
 
   _loadTextures(callback) {
-    const loader = new THREE.TextureLoader();
-    const textureLoader = new THREE.TextureLoader();
-    // const texture2AO = textureLoader.load(
-    //   "./assets/textures/Metal_007_SD/Metal_007_ambientOcclusion.png"
-    // );
-    // const textureMetal = textureLoader.load(
-    //   "./assets/textures/Metal_007_SD/Metal_007_metallic.png"
-    // );
-    // const textureRough = textureLoader.load(
-    //   "./assets/textures/Metal_007_SD/Metal_007_roughness.png"
-    // );
-    // const textureNormal = textureLoader.load(
-    //   "./assets/textures/Metal_007_SD/Metal_007_normal.png"
-    // );
-    // const textureHeight = textureLoader.load(
-    //   "./assets/textures/Metal_007_SD/Metal_007_height.png"
-    // );
-    // const textureColor = textureLoader.load(
-    //   "./assets/textures/Metal_007_SD/Metal_007_basecolor.png"
-    // );
-    const texture2AO = textureLoader.load(
-      "./assets/textures/Marble_Carrara_003_SD/Marble_Carrara_003_OCC.jpg"
-    );
-    const textureRough = textureLoader.load(
-      "./assets/textures/Marble_Carrara_003_SD/Marble_Carrara_003_ROUGH.jpg"
-    );
-    const textureNormal = textureLoader.load(
-      "./assets/textures/Marble_Carrara_003_SD/Marble_Carrara_003_NORM.jpg"
-    );
-    const textureHeight = textureLoader.load(
-      "./assets/textures/Marble_Carrara_003_SD/Marble_Carrara_003_DISP.png"
-    );
-    const textureColor = textureLoader.load(
-      "./assets/textures/Marble_Carrara_003_SD/Marble_Carrara_003_COLOR.jpg"
-    );
+    const folder = "Marble_Carrara_003_SD";
+    const fileStem = "Marble_Carrara_003_";
+    const texturePaths = {
+      texture2AO: "OCC.jpg",
+      textureMetal: null,
+      textureRough: "ROUGH.jpg",
+      textureNormal: "NORM.jpg",
+      textureHeight: "DISP.png",
+      textureColor: "COLOR.jpg",
+    };
 
-    const texture = Promise.all(
-      [loader.load("texture1.jpg"), loader.load("texture2.jpg")],
-      (resolve, reject) => {
-        resolve(texture);
-      }
-    ).then((result) => {
-      // result in array of textures
+    const loader = new THREE.TextureLoader();
+    // Create array of promises, each resolving to `[key, texture|null]`
+    const promises = Object.entries(texturePaths).reduce((accum, currVal) => {
+      accum.push(
+        new Promise((resolve, reject) => {
+          const [key, fileTail] = currVal;
+          if (fileTail) {
+            const path = `./assets/textures/${folder}/${fileStem}${fileTail}`;
+            const onLoad = (tex) => {
+              resolve([key, tex]);
+            };
+            const onErr = (err) => {
+              reject("Failed to load " + path);
+            };
+            loader.load(path, onLoad, null, onErr);
+          } else {
+            resolve([key, null]);
+          }
+        })
+      );
+      return accum;
+    }, []);
+
+    Promise.all(promises).then((values) => {
+      const textures = values.reduce((accum, currVal) => {
+        const [key, texture] = currVal;
+        accum[key] = texture;
+        return accum;
+      }, {});
+
+      callback(textures);
     });
   }
 
