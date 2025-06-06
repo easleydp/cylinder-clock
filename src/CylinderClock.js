@@ -65,12 +65,9 @@ class CylinderClock {
     this.targetElement.appendChild(this.renderer.domElement);
 
     // Camera
-    this.camera = new THREE.PerspectiveCamera(
-      18,
-      this.targetElement.clientWidth / this.targetElement.clientHeight,
-      0.1,
-      1000
-    );
+    const aspect =
+      this.targetElement.clientWidth / this.targetElement.clientHeight;
+    this.camera = new THREE.PerspectiveCamera(18, aspect, 0.1, 1000);
     // Position camera to view the cylinder. This will be adjusted in _handleResize.
 
     // Lighting
@@ -88,8 +85,7 @@ class CylinderClock {
     //// Temp playground
 
     // Object
-    const geometry = new THREE.CylinderGeometry(1, 1, 7, 50, 50, true);
-    this._loadTextures((textures) => {
+    this._loadTextures().then((textures) => {
       this.textures = textures;
 
       const material = new THREE.MeshStandardMaterial({
@@ -113,6 +109,7 @@ class CylinderClock {
         side: THREE.FrontSide, // Render only front
       });
 
+      const geometry = new THREE.CylinderGeometry(1, 1, 7, 50, 50, true);
       this.mesh = new THREE.Mesh(geometry, material);
 
       this.mesh.geometry.attributes.uv2 = this.mesh.geometry.attributes.uv;
@@ -130,9 +127,10 @@ class CylinderClock {
   }
 
   /**
-   * Loads textures for cylinder. When all loaded, calls the supplied callback with map of textures keyed by texture name.
+   * Loads textures for cylinder.
+   * @returns Promise that resolves to a map of textures keyed by texture name.
    */
-  _loadTextures(callback) {
+  _loadTextures() {
     const folder = "Marble_Carrara_003_SD";
     const fileStem = "Marble_Carrara_003_";
     const fileTails = {
@@ -167,14 +165,12 @@ class CylinderClock {
       return accum;
     }, []);
 
-    Promise.all(promises).then((values) => {
-      const textures = values.reduce((accum, currVal) => {
+    return Promise.all(promises).then((values) => {
+      return values.reduce((accum, currVal) => {
         const [key, texture] = currVal;
         accum[key] = texture;
         return accum;
       }, {});
-
-      callback(textures);
     });
   }
 
