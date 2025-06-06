@@ -31,21 +31,22 @@ class CylinderClock {
     this.renderer = null;
     this.cylinderMesh = null;
 
-    try {
-      //TODO: move: const fontLoader = new FontLoader();
-      this._init();
-    } catch (error) {
-      console.error("Error initializing CylinderClock:", error);
-      this.destroy(); // Clean up partially initialized resources
-      if (error.message.includes("WebGLRenderer")) {
-        // Basic WebGL check
-        this.targetElement.innerHTML =
-          "<p style='color:red; text-align:center;'>Error: WebGL is not supported or enabled in your browser.</p>";
-      } else {
-        this.targetElement.innerHTML =
-          "<p style='color:red; text-align:center;'>Error initializing clock.</p>";
+    (async () => {
+      try {
+        await this._init();
+      } catch (error) {
+        console.error("Error initializing CylinderClock:", error);
+        this.destroy(); // Clean up partially initialized resources
+        if (error.message?.includes("WebGLRenderer")) {
+          // Basic WebGL check
+          this.targetElement.innerHTML =
+            "<p style='color:red; text-align:center;'>Error: WebGL is not supported or enabled in your browser.</p>";
+        } else {
+          this.targetElement.innerHTML =
+            "<p style='color:red; text-align:center;'>Error initializing clock.</p>";
+        }
       }
-    }
+    })();
   }
 
   async _init() {
@@ -254,7 +255,6 @@ class CylinderClock {
     this.texture = null;
     this.redIndexLines = [];
     this.options = null; // Allow options to be GC'd
-    this.targetElement = null; // Allow targetElement to be GC'd if no other refs
   }
 }
 
