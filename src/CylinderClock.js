@@ -48,7 +48,7 @@ class CylinderClock {
     }
   }
 
-  _init() {
+  async _init() {
     if (this.isRunning) return;
     this.isRunning = true;
 
@@ -85,52 +85,51 @@ class CylinderClock {
     //// Temp playground
 
     // Object
-    this._loadTextures().then((textures) => {
-      this.textures = textures;
+    const textures = await this._loadTextures();
+    this.textures = this.textures;
 
-      const material = new THREE.MeshStandardMaterial({
-        map: textures.textureColor,
-        normalMap: textures.textureNormal,
-        // How much the normal map affects the material. Typical ranges are 0-1. Default is a Vector2 set to (1,1).
-        normalScale: new THREE.Vector2(1, 1),
-        displacementMap: textures.textureHeight,
-        displacementScale: 0.1, // How much the displacement map affects the mesh
-        displacementBias: 0, // Added to the scaled sample of the displacement map
-        roughnessMap: textures.textureRough,
-        roughness: 0.35, // 0.0 means perfectly shiny, 0.0 means fully matt
-        aoMap: textures.texture2AO,
-        aoMapIntensity: 1, // Intensity of the ambient occlusion effect. Range is 0-1, where 0 disables ambient occlusion
-        metalnessMap: textures.textureMetal,
-        // How much the material is like a metal. Non-metallic materials such as wood or stone use 0.0, metallic use 1.0,
-        // with nothing (usually) in between. Default is 0.0. A value between 0.0 and 1.0 could be used for a rusty metal
-        // look. If metalnessMap is also provided, both values are multiplied.
-        metalness: 0.0,
-        color: 0xffffff, // Base color, texture will dominate
-        side: THREE.FrontSide, // Render only front
-      });
-
-      const geometry = new THREE.CylinderGeometry(1, 1, 7, 50, 50, true);
-      this.mesh = new THREE.Mesh(geometry, material);
-
-      this.mesh.geometry.attributes.uv2 = this.mesh.geometry.attributes.uv;
-      this.mesh.position.set(0, 0, 0);
-
-      this.mesh.rotation.z = Math.PI / 2;
-      this.scene.add(this.mesh);
-
-      this.camera.position.z = 9;
-
-      // Start animation
-      this._animationLoop = this._animationLoop.bind(this);
-      this.animationFrameId = window.requestAnimationFrame(this._animationLoop);
+    const material = new THREE.MeshStandardMaterial({
+      map: textures.textureColor,
+      normalMap: textures.textureNormal,
+      // How much the normal map affects the material. Typical ranges are 0-1. Default is a Vector2 set to (1,1).
+      normalScale: new THREE.Vector2(1, 1),
+      displacementMap: textures.textureHeight,
+      displacementScale: 0.1, // How much the displacement map affects the mesh
+      displacementBias: 0, // Added to the scaled sample of the displacement map
+      roughnessMap: textures.textureRough,
+      roughness: 0.35, // 0.0 means perfectly shiny, 0.0 means fully matt
+      aoMap: textures.texture2AO,
+      aoMapIntensity: 1, // Intensity of the ambient occlusion effect. Range is 0-1, where 0 disables ambient occlusion
+      metalnessMap: textures.textureMetal,
+      // How much the material is like a metal. Non-metallic materials such as wood or stone use 0.0, metallic use 1.0,
+      // with nothing (usually) in between. Default is 0.0. A value between 0.0 and 1.0 could be used for a rusty metal
+      // look. If metalnessMap is also provided, both values are multiplied.
+      metalness: 0.0,
+      color: 0xffffff, // Base color, texture will dominate
+      side: THREE.FrontSide, // Render only front
     });
+
+    const geometry = new THREE.CylinderGeometry(1, 1, 7, 50, 50, true);
+    this.mesh = new THREE.Mesh(geometry, material);
+
+    this.mesh.geometry.attributes.uv2 = this.mesh.geometry.attributes.uv;
+    this.mesh.position.set(0, 0, 0);
+
+    this.mesh.rotation.z = Math.PI / 2;
+    this.scene.add(this.mesh);
+
+    this.camera.position.z = 9;
+
+    // Start animation
+    this._animationLoop = this._animationLoop.bind(this);
+    this.animationFrameId = window.requestAnimationFrame(this._animationLoop);
   }
 
   /**
    * Loads textures for cylinder.
    * @returns Promise that resolves to a map of textures keyed by texture name.
    */
-  _loadTextures() {
+  async _loadTextures() {
     const folder = "Marble_Carrara_003_SD";
     const fileStem = "Marble_Carrara_003_";
     const fileTails = {
