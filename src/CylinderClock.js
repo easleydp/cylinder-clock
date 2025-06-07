@@ -83,47 +83,21 @@ class CylinderClock {
     directionalLight2.position.set(-5, -10, 7.5); // Experiment with position
     this.scene.add(directionalLight2);
 
-    //// Temp playground
+    // Cylinder textures
+    this.textures = await this._loadTextures();
 
-    // Object
-    const textures = await this._loadTextures();
-    this.textures = this.textures;
+    this._createCylinder();
 
-    const material = new THREE.MeshStandardMaterial({
-      map: textures.textureColor,
-      normalMap: textures.textureNormal,
-      // How much the normal map affects the material. Typical ranges are 0-1. Default is a Vector2 set to (1,1).
-      normalScale: new THREE.Vector2(1, 1),
-      displacementMap: textures.textureHeight,
-      displacementScale: 0.1, // How much the displacement map affects the mesh
-      displacementBias: 0, // Added to the scaled sample of the displacement map
-      roughnessMap: textures.textureRough,
-      roughness: 0.35, // 0.0 means perfectly shiny, 0.0 means fully matt
-      aoMap: textures.texture2AO,
-      aoMapIntensity: 1, // Intensity of the ambient occlusion effect. Range is 0-1, where 0 disables ambient occlusion
-      metalnessMap: textures.textureMetal,
-      // How much the material is like a metal. Non-metallic materials such as wood or stone use 0.0, metallic use 1.0,
-      // with nothing (usually) in between. Default is 0.0. A value between 0.0 and 1.0 could be used for a rusty metal
-      // look. If metalnessMap is also provided, both values are multiplied.
-      metalness: 0.0,
-      color: 0xffffff, // Base color, texture will dominate
-      side: THREE.FrontSide, // Render only front
-    });
-
-    const geometry = new THREE.CylinderGeometry(1, 1, 7, 50, 50, true);
-    this.mesh = new THREE.Mesh(geometry, material);
-
-    this.mesh.geometry.attributes.uv2 = this.mesh.geometry.attributes.uv;
-    this.mesh.position.set(0, 0, 0);
-
-    this.mesh.rotation.z = Math.PI / 2;
-    this.scene.add(this.mesh);
-
-    this.camera.position.z = 9;
+    // Initial Resize and Positioning
+    this._handleResize();
 
     // Start animation
     this._animationLoop = this._animationLoop.bind(this);
     this.animationFrameId = window.requestAnimationFrame(this._animationLoop);
+
+    // Setup responsiveness
+    this.resizeObserver = new ResizeObserver(() => this._handleResize());
+    this.resizeObserver.observe(this.targetElement);
   }
 
   /**
@@ -174,6 +148,117 @@ class CylinderClock {
     });
   }
 
+  _createCylinder() {
+    const textures = this.textures;
+    const material = new THREE.MeshStandardMaterial({
+      map: textures.textureColor,
+      normalMap: textures.textureNormal,
+      // How much the normal map affects the material. Typical ranges are 0-1. Default is a Vector2 set to (1,1).
+      normalScale: new THREE.Vector2(1, 1),
+      displacementMap: textures.textureHeight,
+      displacementScale: 0.1, // How much the displacement map affects the mesh
+      displacementBias: 0, // Added to the scaled sample of the displacement map
+      roughnessMap: textures.textureRough,
+      roughness: 0.35, // 0.0 means perfectly shiny, 0.0 means fully matt
+      aoMap: textures.texture2AO,
+      aoMapIntensity: 1, // Intensity of the ambient occlusion effect. Range is 0-1, where 0 disables ambient occlusion
+      metalnessMap: textures.textureMetal,
+      // How much the material is like a metal. Non-metallic materials such as wood or stone use 0.0, metallic use 1.0,
+      // with nothing (usually) in between. Default is 0.0. A value between 0.0 and 1.0 could be used for a rusty metal
+      // look. If metalnessMap is also provided, both values are multiplied.
+      metalness: 0.0,
+      color: 0xffffff, // Base color, texture will dominate
+      side: THREE.FrontSide, // Render only front
+    });
+
+    const geometry = new THREE.CylinderGeometry(1, 1, 7, 50, 50, true);
+    const mesh = (this.cylinderMesh = new THREE.Mesh(geometry, material));
+
+    // TODO: Needs a comment:
+    mesh.geometry.attributes.uv2 = mesh.geometry.attributes.uv;
+    mesh.position.set(0, 0, 0);
+
+    this.cylinderMesh.rotation.z = Math.PI / 2;
+    this.scene.add(mesh);
+  }
+
+  _handleResize() {
+    if (
+      !this.renderer ||
+      !this.camera ||
+      !this.targetElement ||
+      !this.cylinderMesh
+    ) {
+      console.log("_handleResize() returning early");
+      return;
+    }
+
+    const width = this.targetElement.clientWidth;
+    const height = this.targetElement.clientHeight;
+
+    this.renderer.setSize(width, height);
+    this.camera.aspect = width / height;
+
+    // Adjust cylinder geometry or camera to fit
+    // Keep cylinder L = 3 * D. D is 2 * radius.
+    let cylinderRadius, cylinderLength;
+
+    // Option: Scale cylinder to fit div
+    const typicalAspectRatio = 3 / 1; // Cylinder L/D
+    const divAspect = width / height;
+
+    if (divAspect > typicalAspectRatio) {
+      // Div is wider than typical cylinder aspect
+      // Fit to height
+      cylinderRadius = height / 2.5;
+    } else {
+      // Div is taller or equal aspect
+      // Fit to width (L = width)
+      cylinderRadius = width / typicalAspectRatio / 2.5;
+    }
+    cylinderLength = typicalAspectRatio * (cylinderRadius * 2);
+
+    // Update cylinder geometry (if needed, or scale mesh)
+    // For simplicity, let's assume the initial geometry is okay and we adjust camera
+    // Or, rebuild geometry (more complex to do on each resize for existing texture mapping)
+    // Scaling the mesh is easier:
+    if (
+      this.cylinderMesh.geometry.parameters.radiusTop !== cylinderRadius ||
+      this.cylinderMesh.geometry.parameters.height !== cylinderLength
+    ) {
+      console.log("Updating cylinder geometry");
+      // Recreate geometry (this might be heavy) or scale the mesh
+      // Simple scaling for now:
+      const oldRadius = this.cylinderMesh.geometry.parameters.radiusTop;
+      //const oldLength = this.cylinderMesh.geometry.parameters.height;
+      //this.cylinderMesh.scale.set(cylinderLength/oldLength, cylinderRadius/oldRadius, cylinderRadius/oldRadius);
+      // Re-creating is safer for UVs and complex interactions
+      this.scene.remove(this.cylinderMesh);
+      this.cylinderMesh.geometry.dispose();
+      this.cylinderMesh.material.dispose(); // Texture is shared, don't dispose it.
+      this._createCylinder(); // Will use current targetElement dimensions
+      // this._createRedIndexLines(); // Re-create red lines based on new cylinder size
+    }
+
+    // Adjust camera position to frame the (potentially new sized) cylinder
+    // Fit cylinder (length `actualCylinderLength`, diameter `2 * actualCylinderRadius`)
+    const actualCylinderRadius =
+      this.cylinderMesh.geometry.parameters.radiusTop;
+    const actualCylinderLength = this.cylinderMesh.geometry.parameters.height;
+
+    const fovRad = THREE.MathUtils.degToRad(this.camera.fov);
+    const distToFitHeight = actualCylinderRadius / Math.tan(fovRad / 2);
+    const distToFitWidth =
+      actualCylinderLength / 2 / (Math.tan(fovRad / 2) * this.camera.aspect);
+
+    this.camera.position.x = 0;
+    this.camera.position.y = 0;
+    this.camera.position.z =
+      Math.max(distToFitHeight, distToFitWidth) * 1.1 + actualCylinderRadius; // 1.1 for padding
+    this.camera.lookAt(0, 0, 0);
+    this.camera.updateProjectionMatrix();
+  }
+
   _animationLoop(timestamp) {
     if (!this.isRunning) return;
 
@@ -191,8 +276,8 @@ class CylinderClock {
     // }
     this.lastTimestamp = timestamp;
 
-    // this.mesh.rotation.z = Math.PI / 2;
-    this.mesh.rotation.x = timestamp * -0.0001;
+    // this.cylinderMesh.rotation.z = Math.PI / 2;
+    this.cylinderMesh.rotation.x = timestamp * -0.0001;
 
     this.renderer.render(this.scene, this.camera);
 
