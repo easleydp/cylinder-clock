@@ -1,0 +1,3 @@
+- Revisit the scaling/resize code
+  - Code says aspect ration is 3:1 but it looks otherwise.
+  - Allow cylinder aspect ration to follow that of targetElement?

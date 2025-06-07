@@ -235,7 +235,7 @@ class CylinderClock {
       // Re-creating is safer for UVs and complex interactions
       this.scene.remove(this.cylinderMesh);
       this.cylinderMesh.geometry.dispose();
-      this.cylinderMesh.material.dispose(); // Texture is shared, don't dispose it.
+      this.cylinderMesh.material.dispose(); // Texture is shared, don't dispose.
       this._createCylinder(); // Will use current targetElement dimensions
       // this._createRedIndexLines(); // Re-create red lines based on new cylinder size
     }
