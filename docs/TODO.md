@@ -1,3 +1,4 @@
 - Revisit the scaling/resize code
+  - A fixed-sized div appears to be shrunken on init if window too small, grows as the window is made bigger, but then doesn't shrink again if the window is then made smaller.
   - Code says aspect ration is 3:1 but it looks otherwise.
   - Allow cylinder aspect ration to follow that of targetElement?
