@@ -37,6 +37,10 @@
       // The container div that our canvas will live inside.
       const container = document.getElementById("container");
 
+      const maxRateHz = 30;
+      let lastRateHz = maxRateHz;
+      let lastTimestamp = -1;
+
       function init() {
         // ## Scene Setup ##
         scene = new THREE.Scene();
@@ -83,6 +87,7 @@
         const material = new THREE.MeshStandardMaterial({
           color: 0x0077ff,
           roughness: 0.5,
+          wireframe: true,
         });
         cylinder = new THREE.Mesh(geometry, material);
 
@@ -98,7 +103,7 @@
         onResize();
 
         // Start the animation loop.
-        animate();
+        requestAnimationFrame(animate);
       }
 
       function onResize() {
@@ -126,7 +131,7 @@
         // based on the canvas height.
 
         // The desired visible height of the scene at the camera's z-position.
-        const visibleHeight = 5;
+        const visibleHeight = 6;
 
         const fov = 2 * Math.atan(visibleHeight / (2 * camera.position.z));
         camera.fov = THREE.MathUtils.radToDeg(fov);
@@ -136,16 +141,27 @@
         camera.updateProjectionMatrix();
       }
 
-      function animate() {
-        requestAnimationFrame(animate);
+      function animate(timestamp) {
+        // Throttle animation loop to spare the battery
+        const delta = timestamp - lastTimestamp;
+        const actualRateHz = Math.round(1000 / delta);
+        if (actualRateHz < maxRateHz) {
+          // Show actual refresh rate in console
+          if (lastTimestamp !== -1 && actualRateHz !== lastRateHz)
+            console.log(`Refresh rate: ${actualRateHz} Hz`);
+          lastRateHz = actualRateHz;
+          lastTimestamp = timestamp;
 
-        // ## Animation ##
-        if (cylinder) {
-          // Spinning 'upwards' on its horizontal axis
-          cylinder.rotation.x += 0.005;
+          // ## Animation ##
+          if (cylinder) {
+            // Spinning 'upwards' on its horizontal axis
+            cylinder.rotation.x -= 0.005;
+          }
+
+          renderer.render(scene, camera);
         }
 
-        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
       }
 
       init();
