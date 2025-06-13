@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Three.js Responsive Bevelled Cylinder</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      #container {
+        width: 100vw;
+        height: 100vh;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+        }
+      }
+    </script>
+
+    <script type="module">
+      import * as THREE from "three";
+
+      let scene, camera, renderer, cylinder;
+
+      // The container div that our canvas will live inside.
+      const container = document.getElementById("container");
+
+      function init() {
+        // ## Scene Setup ##
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x222222);
+
+        // ## Camera Setup ##
+        // The initial camera setup. The aspect ratio and fov will be adjusted
+        // dynamically by the ResizeObserver.
+        camera = new THREE.PerspectiveCamera(
+          75,
+          container.clientWidth / container.clientHeight,
+          0.1,
+          1000
+        );
+        camera.position.z = 5;
+
+        // ## Renderer Setup ##
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        container.appendChild(renderer.domElement);
+
+        // ## Lighting ##
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
+        directionalLight.position.set(5, 5, 5);
+        scene.add(directionalLight);
+
+        // ## Cylinder Creation ##
+        // Define the 2D points for the lathe geometry. These points define the
+        // profile of one side of the cylinder.
+        const points = [];
+        for (let i = 0; i < 10; i++) {
+          points.push(
+            new THREE.Vector2(Math.sin(i * 0.2) * 10 + 5, (i - 5) * 2)
+          );
+        }
+        // Add a bevel to the cylinder ends.
+        points[0].x = 0;
+        points[points.length - 1].x = 0;
+
+        const geometry = new THREE.LatheGeometry(points, 32);
+        const material = new THREE.MeshStandardMaterial({
+          color: 0x0077ff,
+          roughness: 0.5,
+        });
+        cylinder = new THREE.Mesh(geometry, material);
+
+        // Orient the cylinder horizontally.
+        cylinder.rotation.z = Math.PI / 2;
+        scene.add(cylinder);
+
+        // ## Responsive Resizing ##
+        const resizeObserver = new ResizeObserver(onResize);
+        resizeObserver.observe(container);
+
+        // Initial resize call to set everything up.
+        onResize();
+
+        // Start the animation loop.
+        animate();
+      }
+
+      function onResize() {
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+
+        // ## Optimal Detail ##
+        // Set the renderer's pixel ratio to the device's pixel ratio.
+        // This ensures that the canvas is rendered at the native resolution of
+        // the screen, preventing blurriness on high-DPI displays and avoiding
+        // unnecessary calculations.
+        renderer.setPixelRatio(window.devicePixelRatio);
+
+        // Update the renderer's size.
+        renderer.setSize(width, height);
+
+        // ## Maintain Camera Perspective ##
+        // To maintain the same perspective, we need to ensure that the
+        // visible height of the scene at a certain distance remains constant.
+        // We can do this by adjusting the camera's vertical field of view (fov)
+        // based on the canvas height.
+
+        // The desired visible height of the scene at the camera's z-position.
+        const visibleHeight = 5;
+
+        // Calculate the required fov in radians.
+        const fov = 2 * Math.atan(visibleHeight / (2 * camera.position.z));
+
+        // Convert fov to degrees and update the camera.
+        camera.fov = THREE.MathUtils.radToDeg(fov);
+
+        // Update the camera's aspect ratio.
+        camera.aspect = width / height;
+
+        console.log(1, fov, width / height);
+
+        // It's crucial to call this after changing camera parameters.
+        camera.updateProjectionMatrix();
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+
+        // ## Animation ##
+        // Rotate the cylinder "upwards".
+        if (cylinder) {
+          cylinder.rotation.y += 0.005;
+        }
+
+        renderer.render(scene, camera);
+      }
+
+      init();
+    </script>
+  </body>
+</html>
