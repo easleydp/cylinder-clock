@@ -46,6 +46,10 @@
       let lastRateHz = maxRateHz;
       let lastTimestamp = -1;
 
+      let actualCylHeight;
+      let actualCylWidth;
+      let actualCylAspectRatio;
+
       function init() {
         // ## Scene Setup ##
         scene = new THREE.Scene();
@@ -87,7 +91,13 @@
             i > 1 && i < 9 ? 2 + Math.sin(((i - 2) / 6) * Math.PI) * 0.5 : 2;
           points.push(new THREE.Vector2(radius, (i - 5) * 1.0));
         }
-        //console.log(0, points);
+
+        // After orienting the cylinder horizontally, the actual height will be the max(x)*2
+        // and the actual width will be max(y) - min(y)
+        const extremes = getExtremes(points);
+        actualCylHeight = extremes.maxX * 2;
+        actualCylWidth = extremes.maxY - extremes.minY;
+        actualCylAspectRatio = actualCylWidth / actualCylHeight;
 
         const geometry = new THREE.LatheGeometry(points, 64);
         const material = new THREE.MeshStandardMaterial({
@@ -112,6 +122,21 @@
         requestAnimationFrame(animate);
       }
 
+      function getExtremes(points) {
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        let minY = Infinity;
+
+        for (let i = 0, len = points.length; i < len; i++) {
+          const p = points[i];
+          if (p.x > maxX) maxX = p.x;
+          if (p.y > maxY) maxY = p.y;
+          if (p.y < minY) minY = p.y;
+        }
+
+        return { maxX, maxY, minY };
+      }
+
       function onResize() {
         if (!container) return;
         const width = container.clientWidth;
@@ -128,23 +153,24 @@
         // from the camera remains constant. In Three.js, the PerspectiveCamera's
         // vertical field of view (fov) and the canvas's aspect ratio determine what
         // is visible.
-        // By keeping the visible height of the scene constant, we can adjust the fov
-        // based on the canvas height.
-
-        // To maintain the same perspective, we need to ensure that the
-        // visible height of the scene at a certain distance remains constant.
-        // We can do this by adjusting the camera's vertical field of view (fov)
-        // based on the canvas height.
+        // So we need to adjust the fov based on the canvas height.
 
         // The desired visible height of the scene at the camera's z-position.
-        const visibleHeight = 6;
+        let visibleHeight = actualCylHeight + 0.5; // Actual height plus buffer
+
+        // Display with extra height if the aspect ratio isn't wide enough to display
+        // the cylinder without clipping.
+        const ctAspectRatio = width / height;
+        if (ctAspectRatio < actualCylAspectRatio) {
+          visibleHeight *= actualCylAspectRatio / ctAspectRatio;
+        }
 
         const fov = 2 * Math.atan(visibleHeight / (2 * camera.position.z));
         camera.fov = THREE.MathUtils.radToDeg(fov);
 
         camera.aspect = width / height;
-        // It's crucial to call this after changing camera parameters.
-        camera.updateProjectionMatrix();
+
+        camera.updateProjectionMatrix(); // crucial after changing camera parameters!
       }
 
       function animate(timestamp) {
@@ -153,8 +179,8 @@
         const actualRateHz = Math.round(1000 / delta);
         if (actualRateHz < maxRateHz) {
           // Show actual refresh rate in console
-          if (lastTimestamp !== -1 && actualRateHz !== lastRateHz)
-            console.log(`Refresh rate: ${actualRateHz} Hz`);
+          //   if (lastTimestamp !== -1 && actualRateHz !== lastRateHz)
+          //     console.log(`Refresh rate: ${actualRateHz} Hz`);
           lastRateHz = actualRateHz;
           lastTimestamp = timestamp;
 
