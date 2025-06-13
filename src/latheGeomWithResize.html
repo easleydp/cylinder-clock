@@ -79,7 +79,7 @@
           points.push(new THREE.Vector2(radius, (i - 5) * 0.4));
         }
 
-        const geometry = new THREE.LatheGeometry(points, 32);
+        const geometry = new THREE.LatheGeometry(points, 64);
         const material = new THREE.MeshStandardMaterial({
           color: 0x0077ff,
           roughness: 0.5,
@@ -111,10 +111,21 @@
         renderer.setSize(width, height);
 
         // ## Maintain Camera Perspective ##
+
+        // To ensure the rendered view is simply a magnified version of a smaller view,
+        // we need to make sure that the visible area of the scene at a given distance
+        // from the camera remains constant. In Three.js, the PerspectiveCamera's
+        // vertical field of view (fov) and the canvas's aspect ratio determine what
+        // is visible.
+        // By keeping the visible height of the scene constant, we can adjust the fov
+        // based on the canvas height.
+
         // To maintain the same perspective, we need to ensure that the
         // visible height of the scene at a certain distance remains constant.
         // We can do this by adjusting the camera's vertical field of view (fov)
         // based on the canvas height.
+
+        // The desired visible height of the scene at the camera's z-position.
         const visibleHeight = 5;
 
         const fov = 2 * Math.atan(visibleHeight / (2 * camera.position.z));
