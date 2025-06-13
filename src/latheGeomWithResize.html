@@ -82,16 +82,27 @@
         scene.add(directionalLight);
 
         // ## Cylinder Creation ##
-        // Define the 2D points for the lathe geometry.
+        // Define the 2D points for the LatheGeometry.
         // The x-value of the Vector2 is the radius, and the y-value is the height.
-        // The expression `Math.sin(i * 0.2) * 10 + 5` created a large radius (~15).
-        const points = [];
-        for (let i = 0; i <= 10; i++) {
-          const radius =
-            i > 1 && i < 9 ? 2 + Math.sin(((i - 2) / 6) * Math.PI) * 0.5 : 2;
-          points.push(new THREE.Vector2(radius, (i - 5) * 1.0));
-        }
+        // (Note: The lathe rotates around the Y axis so these points are for a
+        // vertically oriented cylinder.)
 
+        // // The expression `Math.sin(i * 0.2) * 10 + 5` created a large radius (~15).
+        // const points = [];
+        // for (let i = 0; i <= 10; i++) {
+        //   const radius =
+        //     i > 1 && i < 9 ? 2 + Math.sin(((i - 2) / 6) * Math.PI) * 0.5 : 2;
+        //   points.push(new THREE.Vector2(radius, (i - 5) * 1.0));
+        // }
+
+        const points = generateBevelledCylinderPoints({
+          radius: 2.5,
+          height: 10,
+          bevelSize: 0.08,
+          bevelSegments: 2, // Use more segments for a smoother bevel
+        });
+
+        // Measure the cylinder for calculating the camera fov later (in onResize).
         // After orienting the cylinder horizontally, the actual height will be the max(x)*2
         // and the actual width will be max(y) - min(y)
         const extremes = getExtremes(points);
@@ -99,6 +110,7 @@
         actualCylWidth = extremes.maxY - extremes.minY;
         actualCylAspectRatio = actualCylWidth / actualCylHeight;
 
+        //console.log(points);
         const geometry = new THREE.LatheGeometry(points, 64);
         const material = new THREE.MeshStandardMaterial({
           color: 0x0077ff,
@@ -120,6 +132,87 @@
 
         // Start the animation loop.
         requestAnimationFrame(animate);
+      }
+
+      /**
+       * Generates a THREE.Vector2 array for a bevelled cylinder profile.
+       *
+       * This function creates the 2D profile (a cross-section) needed by
+       * THREE.LatheGeometry to generate a 3D cylinder with bevelled top and
+       * bottom edges. The profile is drawn along the positive X and Y axes,
+       * centred vertically around the origin.
+       *
+       * @param {object} params - The parameters for the cylinder.
+       * @param {number} params.radius - The radius of the cylinder.
+       * @param {number} params.height - The total axial height of the cylinder.
+       * @param {number} params.bevelSize - The size of the bevel (radius of the fillet).
+       * @param {number} params.bevelSegments - The number of segments in the bevel's curve. More segments create a smoother curve.
+       * @returns {THREE.Vector2[]} An array of THREE.Vector2 points for THREE.LatheGeometry.
+       */
+      function generateBevelledCylinderPoints({
+        radius,
+        height,
+        bevelSize,
+        bevelSegments,
+      }) {
+        const points = [];
+        const halfHeight = height / 2;
+
+        // Clamp the bevel size to prevent geometry errors
+        const b = Math.min(bevelSize, radius, halfHeight);
+
+        // --- Define the key vertices of the profile ---
+
+        // P1: Top-center
+        const p1 = { x: 0, y: halfHeight };
+        // P2: Start of top bevel on the flat top surface
+        const p2 = { x: radius - b, y: halfHeight };
+        // P3: End of top bevel, start of the vertical side
+        const p3 = { x: radius, y: halfHeight - b };
+        // P4: End of the vertical side, start of the bottom bevel
+        const p4 = { x: radius, y: -halfHeight + b };
+        // P5: End of the bottom bevel, start of the flat bottom surface
+        const p5 = { x: radius - b, y: -halfHeight };
+        // P6: Bottom-center
+        const p6 = { x: 0, y: -halfHeight };
+
+        // --- Generate the points array by tracing the profile ---
+
+        // Start at the top-center
+        //points.push(new THREE.Vector2(p1.x, p1.y));
+        points.push(new THREE.Vector2(p2.x, p2.y));
+
+        // Generate the top bevel curve if the bevel is significant
+        if (b > 0 && bevelSegments > 0) {
+          const topBevelCenter = { x: p2.x, y: p3.y };
+          for (let i = 1; i < bevelSegments; i++) {
+            const angle = (Math.PI / 2) * (1 - i / bevelSegments);
+            const x = topBevelCenter.x + b * Math.cos(angle);
+            const y = topBevelCenter.y + b * Math.sin(angle);
+            points.push(new THREE.Vector2(x, y));
+          }
+        }
+
+        // Add the corner points that define the main cylindrical shape
+        points.push(new THREE.Vector2(p3.x, p3.y));
+        points.push(new THREE.Vector2(p4.x, p4.y));
+
+        // Generate the bottom bevel curve
+        if (b > 0 && bevelSegments > 0) {
+          const bottomBevelCenter = { x: p5.x, y: p4.y };
+          for (let i = 1; i < bevelSegments; i++) {
+            const angle = -(Math.PI / 2) * (i / bevelSegments);
+            const x = bottomBevelCenter.x + b * Math.cos(angle);
+            const y = bottomBevelCenter.y + b * Math.sin(angle);
+            points.push(new THREE.Vector2(x, y));
+          }
+        }
+
+        // Add the final points to close the profile at the bottom-center
+        points.push(new THREE.Vector2(p5.x, p5.y));
+        //points.push(new THREE.Vector2(p6.x, p6.y));
+
+        return points.reverse(); // We actually want the y coords going up
       }
 
       function getExtremes(points) {
