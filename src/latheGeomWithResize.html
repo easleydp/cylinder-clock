@@ -51,31 +51,33 @@
           0.1,
           1000
         );
-        camera.position.z = 5;
+
+        // ### FIX 1: Move the camera further away ###
+        // The generated cylinder is quite large, so we need to move the camera
+        // back to be able to see it.
+        camera.position.z = 30;
 
         // ## Renderer Setup ##
         renderer = new THREE.WebGLRenderer({ antialias: true });
         container.appendChild(renderer.domElement);
 
         // ## Lighting ##
-        const ambientLight = new THREE.AmbientLight(0x404040);
+        const ambientLight = new THREE.AmbientLight(0x404040, 1.5); // Slightly increased intensity
         scene.add(ambientLight);
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
-        directionalLight.position.set(5, 5, 5);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(10, 10, 10); // Moved light to better illuminate
         scene.add(directionalLight);
 
         // ## Cylinder Creation ##
-        // Define the 2D points for the lathe geometry. These points define the
-        // profile of one side of the cylinder.
+        // Define the 2D points for the lathe geometry.
+        // The x-value of the Vector2 is the radius, and the y-value is the height.
+        // The expression `Math.sin(i * 0.2) * 10 + 5` created a large radius (~15).
         const points = [];
-        for (let i = 0; i < 10; i++) {
-          points.push(
-            new THREE.Vector2(Math.sin(i * 0.2) * 10 + 5, (i - 5) * 2)
-          );
+        for (let i = 0; i <= 10; i++) {
+          const radius =
+            i > 1 && i < 9 ? 2 + Math.sin(((i - 2) / 6) * Math.PI) * 0.5 : 2;
+          points.push(new THREE.Vector2(radius, (i - 5) * 0.4));
         }
-        // Add a bevel to the cylinder ends.
-        points[0].x = 0;
-        points[points.length - 1].x = 0;
 
         const geometry = new THREE.LatheGeometry(points, 32);
         const material = new THREE.MeshStandardMaterial({
@@ -100,17 +102,12 @@
       }
 
       function onResize() {
+        if (!container) return;
         const width = container.clientWidth;
         const height = container.clientHeight;
 
         // ## Optimal Detail ##
-        // Set the renderer's pixel ratio to the device's pixel ratio.
-        // This ensures that the canvas is rendered at the native resolution of
-        // the screen, preventing blurriness on high-DPI displays and avoiding
-        // unnecessary calculations.
         renderer.setPixelRatio(window.devicePixelRatio);
-
-        // Update the renderer's size.
         renderer.setSize(width, height);
 
         // ## Maintain Camera Perspective ##
@@ -118,21 +115,12 @@
         // visible height of the scene at a certain distance remains constant.
         // We can do this by adjusting the camera's vertical field of view (fov)
         // based on the canvas height.
-
-        // The desired visible height of the scene at the camera's z-position.
         const visibleHeight = 5;
 
-        // Calculate the required fov in radians.
         const fov = 2 * Math.atan(visibleHeight / (2 * camera.position.z));
-
-        // Convert fov to degrees and update the camera.
         camera.fov = THREE.MathUtils.radToDeg(fov);
 
-        // Update the camera's aspect ratio.
         camera.aspect = width / height;
-
-        console.log(1, fov, width / height);
-
         // It's crucial to call this after changing camera parameters.
         camera.updateProjectionMatrix();
       }
@@ -141,9 +129,9 @@
         requestAnimationFrame(animate);
 
         // ## Animation ##
-        // Rotate the cylinder "upwards".
         if (cylinder) {
-          cylinder.rotation.y += 0.005;
+          // Spinning 'upwards' on its horizontal axis
+          cylinder.rotation.x += 0.005;
         }
 
         renderer.render(scene, camera);
