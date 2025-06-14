@@ -108,6 +108,10 @@
         const extremes = getExtremes(points);
         actualCylHeight = extremes.maxX * 2;
         actualCylWidth = extremes.maxY - extremes.minY;
+        // We don't want the cylinder rendered right up against the canvas edges
+        actualCylHeight += 0.5;
+        actualCylWidth += 1.5;
+
         actualCylAspectRatio = actualCylWidth / actualCylHeight;
 
         //console.log(points);
@@ -249,7 +253,7 @@
         // So we need to adjust the fov based on the canvas height.
 
         // The desired visible height of the scene at the camera's z-position.
-        let visibleHeight = actualCylHeight + 0.5; // Actual height plus buffer
+        let visibleHeight = actualCylHeight;
 
         // Display with extra height if the aspect ratio isn't wide enough to display
         // the cylinder without clipping.
