@@ -22,6 +22,24 @@ class CylinderClock {
       ...options,
     };
 
+    this.cylDiameter = 5;
+    this.cylAxialLength = 15;
+    // We don't want the cylinder rendered right up against the canvas edges
+    this.sceneHeight = this.cylDiameter + 0.5;
+    this.sceneWidth = this.cylAxialLength + 2.0;
+
+    this.markerRadialHeight = 0.08; // Thickness of the marker (embossed'ness)
+
+    this.minorMarkerCircumferentialLength = 0.06;
+    this.minorMarkerAxialWidth = 0.5; // Width along the cylinder's length
+
+    this.majorMarkerCircumferentialLength = 0.18;
+    this.majorMarkerAxialWidth = this.minorMarkerAxialWidth * 1.4;
+
+    this.markerEndBuffer =
+      Math.max(this.majorMarkerAxialWidth, this.minorMarkerAxialWidth) / 2 +
+      0.02;
+
     this.isRunning = false;
     this.animationFrameId = null;
     this.lastTimestamp = -1; // Last timestamp for animation loop
@@ -31,7 +49,7 @@ class CylinderClock {
     this.scene = null;
     this.camera = null;
     this.renderer = null;
-    this.cylinderMesh = null;
+    this.cylinderGroup = null;
 
     (async () => {
       try {
@@ -87,12 +105,15 @@ class CylinderClock {
     this.scene.add(directionalLight2);
 
     // ## Cylinder Creation ##
+    this.cylinderGroup = new THREE.Group();
+    this.scene.add(this.cylinderGroup);
     await this._createCylinder();
+    this._createMarkers();
 
     // ## Responsive Resizing ##
     this._onResize = this._onResize.bind(this);
-    const resizeObserver = new ResizeObserver(this._onResize);
-    resizeObserver.observe(this.targetElement);
+    this.resizeObserver = new ResizeObserver(this._onResize);
+    this.resizeObserver.observe(this.targetElement);
 
     // Initial resize call to set everything up.
     this._onResize();
@@ -154,37 +175,11 @@ class CylinderClock {
 
   async _createCylinder() {
     const points = this._generateBevelledCylinderPoints({
-      radius: 2.5,
-      height: 15,
+      radius: this.cylDiameter / 2,
+      height: this.cylAxialLength,
       bevelSize: 0.04,
       bevelSegments: 2, // Use more segments for a smoother bevel
     });
-    const getExtremes = function (points) {
-      let maxX = -Infinity;
-      let maxY = -Infinity;
-      let minY = Infinity;
-
-      for (let i = 0, len = points.length; i < len; i++) {
-        const p = points[i];
-        if (p.x > maxX) maxX = p.x;
-        if (p.y > maxY) maxY = p.y;
-        if (p.y < minY) minY = p.y;
-      }
-
-      return { maxX, maxY, minY };
-    };
-    // Measure the cylinder for calculating the camera fov later (in onResize).
-    // After orienting the cylinder horizontally, the actual height will be the max(x)*2
-    // and the actual width will be max(y) - min(y)
-    const extremes = getExtremes(points);
-    this.actualCylHeight = extremes.maxX * 2;
-    this.actualCylWidth = extremes.maxY - extremes.minY;
-    // We don't want the cylinder rendered right up against the canvas edges
-    this.actualCylHeight += 0.5;
-    this.actualCylWidth += 2.0;
-
-    this.actualCylAspectRatio = this.actualCylWidth / this.actualCylHeight;
-
     const geometry = new THREE.LatheGeometry(points, 64);
     const textures = (this.textures = await this._loadTextures());
     const material = new THREE.MeshStandardMaterial({
@@ -208,7 +203,7 @@ class CylinderClock {
       side: THREE.FrontSide, // Render only front
       //wireframe: true,
     });
-    const mesh = (this.cylinderMesh = new THREE.Mesh(geometry, material));
+    const mesh = new THREE.Mesh(geometry, material);
 
     // Ambient occlusion maps (aoMap) use a second set of UV coordinates, stored in geometry.attributes.uv2.
     // However, most geometries (like THREE.CylinderGeometry) only generate one UV set by default (geometry.attributes.uv),
@@ -217,8 +212,132 @@ class CylinderClock {
     mesh.geometry.attributes.uv2 = mesh.geometry.attributes.uv;
 
     // Orient the cylinder horizontally
-    this.cylinderMesh.rotation.z = Math.PI / 2;
-    this.scene.add(mesh);
+    mesh.rotation.z = Math.PI / 2;
+    this.cylinderGroup.add(mesh);
+  }
+
+  _createMarkers() {
+    const numMajorMarkers = 5;
+    const numMinorMarkersBetweenMajor = 11;
+    const totalMarkersPerEnd =
+      numMajorMarkers * (1 + numMinorMarkersBetweenMajor);
+    const baseAngleIncrement = (2 * Math.PI) / totalMarkersPerEnd;
+
+    const cylinderMarkerPlacementX =
+      this.cylAxialLength / 2 - this.markerEndBuffer;
+    const markerXPositions = [
+      -cylinderMarkerPlacementX,
+      cylinderMarkerPlacementX,
+    ];
+
+    markerXPositions.forEach((markerCenterX) => {
+      for (let i = 0; i < totalMarkersPerEnd; i++) {
+        const isMajor = i % (numMinorMarkersBetweenMajor + 1) === 0;
+
+        const axialWidth = isMajor
+          ? this.majorMarkerAxialWidth
+          : this.minorMarkerAxialWidth;
+        const radialHeight = isMajor
+          ? this.markerRadialHeight
+          : this.markerRadialHeight / 4;
+        const circumferentialLength = isMajor
+          ? this.majorMarkerCircumferentialLength
+          : this.minorMarkerCircumferentialLength;
+
+        const markerCenterAngle = i * baseAngleIncrement;
+
+        const markerGeom = this._createDeformedMarkerGeometry(
+          axialWidth,
+          radialHeight,
+          circumferentialLength,
+          this.cylDiameter / 2,
+          markerCenterX,
+          markerCenterAngle
+        );
+        const markerMaterial = new THREE.MeshStandardMaterial({
+          color: 0x666666,
+          metalness: 0.4,
+          roughness: 0.4,
+        });
+        const marker = new THREE.Mesh(markerGeom, markerMaterial);
+        this.cylinderGroup.add(marker);
+      }
+    });
+  }
+
+  // Deformed markers (as opposed to simple cubes) may be OTT given how small the markers are
+  _createDeformedMarkerGeometry(
+    axialWidth,
+    radialHeight,
+    circumferentialLength,
+    baseCylinderRadius,
+    markerCenterX,
+    markerCenterAngle
+  ) {
+    const geometry = new THREE.BufferGeometry();
+
+    const epsilon = 0.05; // Small offset to prevent Z-fighting
+
+    // The marker's bottom surface will be at baseCylinderRadius + epsilon
+    // The marker's top surface will be at baseCylinderRadius + epsilon + radialHeight
+    const actualBottomRadius = baseCylinderRadius + epsilon;
+    const actualTopRadius = actualBottomRadius + radialHeight;
+
+    // Calculate angular width based on the desired circumferential length
+    // at the marker's intended visual mid-radius (before epsilon offset for Z-fighting)
+    const visualMidRadius = baseCylinderRadius + radialHeight / 2;
+    const angularWidth = circumferentialLength / visualMidRadius;
+
+    const angleStart = markerCenterAngle - angularWidth / 2;
+    const angleEnd = markerCenterAngle + angularWidth / 2;
+
+    const xStart = markerCenterX - axialWidth / 2;
+    const xEnd = markerCenterX + axialWidth / 2;
+
+    // prettier-ignore
+    const vertices = new Float32Array([
+            // Bottom face (using actualBottomRadius)
+            xStart, actualBottomRadius * Math.cos(angleStart), actualBottomRadius * Math.sin(angleStart), // p0
+            xEnd,   actualBottomRadius * Math.cos(angleStart), actualBottomRadius * Math.sin(angleStart), // p1
+            xStart, actualBottomRadius * Math.cos(angleEnd),   actualBottomRadius * Math.sin(angleEnd),   // p2
+            xEnd,   actualBottomRadius * Math.cos(angleEnd),   actualBottomRadius * Math.sin(angleEnd),   // p3
+
+            // Top face (using actualTopRadius)
+            xStart, actualTopRadius * Math.cos(angleStart), actualTopRadius * Math.sin(angleStart), // p4
+            xEnd,   actualTopRadius * Math.cos(angleStart), actualTopRadius * Math.sin(angleStart), // p5
+            xStart, actualTopRadius * Math.cos(angleEnd),   actualTopRadius * Math.sin(angleEnd),   // p6
+            xEnd,   actualTopRadius * Math.cos(angleEnd),   actualTopRadius * Math.sin(angleEnd)    // p7
+        ]);
+
+    // Consistent Counter-Clockwise (CCW) winding for faces (when viewed from the "outside" of
+    // that face) is crucial for geometry.computeVertexNormals() to generate correct,
+    // outward-pointing normals. Incorrect winding can lead to faces appearing dark or invisible.
+    // prettier-ignore
+    const indices = [
+            // Bottom face (CCW from "below" marker, normal points towards cylinder axis / "down" locally)
+            0, 1, 3,   0, 3, 2, // Quad p0-p1-p3-p2
+
+            // Top face (CCW from "above" marker, normal points radially out from cylinder / "up" locally)
+            4, 6, 7,   4, 7, 5, // Quad p4-p6-p7-p5
+
+            // Side face at angleStart ("front" side along circumference, CCW from outside this face)
+            0, 4, 5,   0, 5, 1, // Quad p0-p4-p5-p1
+
+            // Side face at angleEnd ("back" side along circumference, CCW from outside this face)
+            3, 6, 2,   3, 7, 6, // Quad p3-p2-p6-p7 (note vertex order for CCW)
+
+            // Side face at xStart (axial "left", CCW from outside this face)
+            0, 2, 6,   0, 6, 4, // Quad p0-p2-p6-p4
+
+            // Side face at xEnd (axial "right", CCW from outside this face)
+            1, 5, 7,   1, 7, 3  // Quad p1-p5-p7-p3
+        ];
+
+    geometry.setAttribute("position", new THREE.BufferAttribute(vertices, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+
+    return geometry;
   }
 
   /**
@@ -341,13 +460,14 @@ class CylinderClock {
     // So we need to adjust the fov based on the canvas height.
 
     // The desired visible height of the scene at the camera's z-position.
-    let visibleHeight = this.actualCylHeight;
+    let visibleHeight = this.sceneHeight;
 
     // Display with extra height if the aspect ratio isn't wide enough to display
     // the cylinder without clipping.
     const ctAspectRatio = width / height;
-    if (ctAspectRatio < this.actualCylAspectRatio) {
-      visibleHeight *= this.actualCylAspectRatio / ctAspectRatio;
+    const sceneAspectRatio = this.sceneWidth / this.sceneHeight;
+    if (ctAspectRatio < sceneAspectRatio) {
+      visibleHeight *= sceneAspectRatio / ctAspectRatio;
     }
 
     const fov = 2 * Math.atan(visibleHeight / (2 * camera.position.z));
@@ -370,9 +490,9 @@ class CylinderClock {
       this.lastTimestamp = timestamp;
 
       // ## Animation ##
-      if (this.cylinderMesh) {
+      if (this.cylinderGroup) {
         // Spinning 'upwards' on its horizontal axis
-        this.cylinderMesh.rotation.x = timestamp * -0.0001;
+        this.cylinderGroup.rotation.x = timestamp * -0.0001;
       }
 
       this.renderer.render(this.scene, this.camera);
@@ -431,7 +551,7 @@ class CylinderClock {
     this.scene = null;
     this.camera = null;
     this.renderer = null;
-    this.cylinderMesh = null;
+    this.cylinderGroup = null;
     this.textureCanvas = null;
     this.textures = null;
     this.redIndexLines = [];
