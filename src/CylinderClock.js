@@ -25,6 +25,8 @@ class CylinderClock {
     this.isRunning = false;
     this.animationFrameId = null;
     this.lastTimestamp = -1; // Last timestamp for animation loop
+    this.maxRateHz = 30;
+    this.lastRateHz = this.maxRateHz;
 
     this.scene = null;
     this.camera = null;
@@ -56,22 +58,23 @@ class CylinderClock {
     // Scene
     this.scene = new THREE.Scene();
 
-    // Renderer
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.renderer.setSize(
-      this.targetElement.clientWidth,
-      this.targetElement.clientHeight
-    );
-    this.targetElement.appendChild(this.renderer.domElement);
-
-    // Camera
+    // ## Camera Setup ##
+    // The initial camera setup. The aspect ratio and fov will be adjusted
+    // dynamically by the ResizeObserver.
     const aspect =
       this.targetElement.clientWidth / this.targetElement.clientHeight;
-    this.camera = new THREE.PerspectiveCamera(25, aspect, 0.1, 1000);
-    // Position camera to view the cylinder. This will be adjusted in _handleResize.
+    this.camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+    // The generated cylinder is quite large, so we need to move the camera
+    // back to be able to see it.
+    this.camera.position.z = 30;
 
-    // Lighting
+    // ## Renderer Setup ##
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    this.renderer.setPixelRatio(window.devicePixelRatio);
+    // renderer size set in onResize
+    this.targetElement.appendChild(this.renderer.domElement);
+
+    // ## Lighting ##
     // const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
     // this.scene.add(ambientLight);
     const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
@@ -83,25 +86,20 @@ class CylinderClock {
     directionalLight2.position.set(-5, -10, 7.5); // Experiment with position
     this.scene.add(directionalLight2);
 
-    // Choose between LatheGeometry (which supports bevels) and CylinderGeometry (which doesn't).
-    // Texture repeat is different for each.
-    this.cylinderType = "cylinder"; // 'lathe' or 'cylinder'
-    this.cylinderTextureRepeat =
-      this.cylinderType === "lathe" ? [2, 4] : [1, 1];
+    // ## Cylinder Creation ##
+    await this._createCylinder();
 
-    // Cylinder textures
-    this.textures = await this._loadTextures();
+    // ## Responsive Resizing ##
+    this._onResize = this._onResize.bind(this);
+    const resizeObserver = new ResizeObserver(this._onResize);
+    resizeObserver.observe(this.targetElement);
 
-    // Initial resize and positioning
-    this._handleResize(true);
+    // Initial resize call to set everything up.
+    this._onResize();
 
     // Start animation
     this._animationLoop = this._animationLoop.bind(this);
     this.animationFrameId = window.requestAnimationFrame(this._animationLoop);
-
-    // Setup responsiveness
-    this.resizeObserver = new ResizeObserver(() => this._handleResize());
-    this.resizeObserver.observe(this.targetElement);
   }
 
   /**
@@ -130,7 +128,7 @@ class CylinderClock {
             const path = `./assets/textures/${folder}/${fileStem}${fileTail}`;
             const onLoad = (tex) => {
               tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-              tex.repeat.set(...this.cylinderTextureRepeat);
+              tex.repeat.set(2, 2);
               resolve([key, tex]);
             };
             const onErr = (err) => {
@@ -154,8 +152,41 @@ class CylinderClock {
     });
   }
 
-  _createCylinder() {
-    const textures = this.textures;
+  async _createCylinder() {
+    const points = this._generateBevelledCylinderPoints({
+      radius: 2.5,
+      height: 15,
+      bevelSize: 0.04,
+      bevelSegments: 2, // Use more segments for a smoother bevel
+    });
+    const getExtremes = function (points) {
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      let minY = Infinity;
+
+      for (let i = 0, len = points.length; i < len; i++) {
+        const p = points[i];
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+        if (p.y < minY) minY = p.y;
+      }
+
+      return { maxX, maxY, minY };
+    };
+    // Measure the cylinder for calculating the camera fov later (in onResize).
+    // After orienting the cylinder horizontally, the actual height will be the max(x)*2
+    // and the actual width will be max(y) - min(y)
+    const extremes = getExtremes(points);
+    this.actualCylHeight = extremes.maxX * 2;
+    this.actualCylWidth = extremes.maxY - extremes.minY;
+    // We don't want the cylinder rendered right up against the canvas edges
+    this.actualCylHeight += 0.5;
+    this.actualCylWidth += 2.0;
+
+    this.actualCylAspectRatio = this.actualCylWidth / this.actualCylHeight;
+
+    const geometry = new THREE.LatheGeometry(points, 64);
+    const textures = (this.textures = await this._loadTextures());
     const material = new THREE.MeshStandardMaterial({
       map: textures.textureColor,
       normalMap: textures.textureNormal,
@@ -177,24 +208,6 @@ class CylinderClock {
       side: THREE.FrontSide, // Render only front
       //wireframe: true,
     });
-
-    const divHeight = this.targetElement.clientHeight;
-    const cylinderRadius = divHeight / 2.5; // Make cylinder diameter a bit smaller than div height
-    const cylinderLength = cylinderRadius * 2 * 3; // L = 3 * D
-
-    console.log(9, cylinderRadius, cylinderLength);
-    const geometry =
-      this.cylinderType === "lathe"
-        ? this._createBevelledCylinderGeometry()
-        : new THREE.CylinderGeometry(
-            cylinderRadius,
-            cylinderRadius,
-            cylinderLength,
-            50,
-            1,
-            true
-          );
-
     const mesh = (this.cylinderMesh = new THREE.Mesh(geometry, material));
 
     // Ambient occlusion maps (aoMap) use a second set of UV coordinates, stored in geometry.attributes.uv2.
@@ -203,190 +216,169 @@ class CylinderClock {
     // map to be applied using the same UVs. Without this, the ambient occlusion texture won’t be displayed at all.
     mesh.geometry.attributes.uv2 = mesh.geometry.attributes.uv;
 
-    mesh.position.set(0, 0, 0);
-
+    // Orient the cylinder horizontally
     this.cylinderMesh.rotation.z = Math.PI / 2;
     this.scene.add(mesh);
   }
 
-  _createBevelledCylinderGeometry() {
-    // Define the 2D profile for the lathe (X = radius, Y = height)
+  /**
+   * Generates a THREE.Vector2 array for a bevelled cylinder profile.
+   *
+   * This function creates the 2D profile (a cross-section) needed by
+   * THREE.LatheGeometry to generate a 3D cylinder with bevelled top and
+   * bottom edges. The profile is drawn along the positive X and Y axes,
+   * centred vertically around the origin.
+   *
+   * @param {object} params - The parameters for the cylinder.
+   * @param {number} params.radius - The radius of the cylinder.
+   * @param {number} params.height - The total axial height of the cylinder.
+   * @param {number} params.bevelSize - The size of the bevel (radius of the fillet).
+   * @param {number} params.bevelSegments - The number of segments in the bevel's curve. More segments create a smoother curve.
+   * @returns {THREE.Vector2[]} An array of THREE.Vector2 points for THREE.LatheGeometry.
+   */
+  _generateBevelledCylinderPoints({
+    radius,
+    height,
+    bevelSize,
+    bevelSegments,
+  }) {
     const points = [];
+    const halfHeight = height / 2;
 
-    // Bottom center
-    //points.push(new THREE.Vector2(0, -3.5));
+    // Clamp the bevel size to prevent geometry errors
+    const b = Math.min(bevelSize, radius, halfHeight);
 
-    // Bottom bevel (small outward slope)
-    points.push(new THREE.Vector2(0.98, -3.48));
-    points.push(new THREE.Vector2(1.0, -3.46));
+    // --- Define the key vertices of the profile ---
 
-    // Straight side
-    points.push(new THREE.Vector2(1.0, 3.46));
+    // P1: Top-center
+    const p1 = { x: 0, y: halfHeight };
+    // P2: Start of top bevel on the flat top surface
+    const p2 = { x: radius - b, y: halfHeight };
+    // P3: End of top bevel, start of the vertical side
+    const p3 = { x: radius, y: halfHeight - b };
+    // P4: End of the vertical side, start of the bottom bevel
+    const p4 = { x: radius, y: -halfHeight + b };
+    // P5: End of the bottom bevel, start of the flat bottom surface
+    const p5 = { x: radius - b, y: -halfHeight };
+    // P6: Bottom-center
+    const p6 = { x: 0, y: -halfHeight };
 
-    // Top bevel (inward slope)
-    points.push(new THREE.Vector2(0.98, 3.48));
-    //points.push(new THREE.Vector2(0, 3.5));
+    // --- Generate the points array by tracing the profile ---
 
-    // Create LatheGeometry by rotating the profile around the Y-axis
-    const geometry = new THREE.LatheGeometry(points, 50);
-    return geometry;
+    // Start at the top-center
+    //points.push(new THREE.Vector2(p1.x, p1.y));
+    points.push(new THREE.Vector2(p2.x, p2.y));
+
+    // Generate the top bevel curve if the bevel is significant
+    if (b > 0 && bevelSegments > 0) {
+      const topBevelCenter = { x: p2.x, y: p3.y };
+      for (let i = 1; i < bevelSegments; i++) {
+        const angle = (Math.PI / 2) * (1 - i / bevelSegments);
+        const x = topBevelCenter.x + b * Math.cos(angle);
+        const y = topBevelCenter.y + b * Math.sin(angle);
+        points.push(new THREE.Vector2(x, y));
+      }
+    }
+
+    // Add the corner points - p3 & p4 - that define the main cylindrical shape
+    points.push(new THREE.Vector2(p3.x, p3.y));
+    {
+      // Add some extra/redundant segments to increase the tessellation to get finer
+      // control over the texture mapping
+      const nSeg = 10; // extra segment count
+      const hSeg = (p3.y - p4.y) / nSeg;
+      for (let i = 1; i < nSeg; i++)
+        points.push(new THREE.Vector2(p3.x, p3.y - i * hSeg)); // n-1 extra points
+    }
+    points.push(new THREE.Vector2(p4.x, p4.y));
+
+    // Generate the bottom bevel curve
+    if (b > 0 && bevelSegments > 0) {
+      const bottomBevelCenter = { x: p5.x, y: p4.y };
+      for (let i = 1; i < bevelSegments; i++) {
+        const angle = -(Math.PI / 2) * (i / bevelSegments);
+        const x = bottomBevelCenter.x + b * Math.cos(angle);
+        const y = bottomBevelCenter.y + b * Math.sin(angle);
+        points.push(new THREE.Vector2(x, y));
+      }
+    }
+
+    // Add the final points to close the profile at the bottom-center
+    points.push(new THREE.Vector2(p5.x, p5.y));
+    //points.push(new THREE.Vector2(p6.x, p6.y));
+
+    return points.reverse(); // We actually want the y coords going up
   }
 
-  _handleResize(force) {
+  _onResize() {
     const camera = this.camera;
-    if (!this.renderer || !camera || !this.targetElement) {
-      console.log(
-        "_handleResize() returning early",
-        !!this.renderer,
-        !!camera,
-        !!this.targetElement
-      );
+    const renderer = this.renderer;
+    const targetEl = this.targetElement;
+    if (!this.isRunning || !renderer || !camera || !targetEl) {
+      console.log("_onResize() returning early", {
+        isRunning: this.isRunning,
+        hasRenderer: !!renderer,
+        hasCamera: !!camera,
+        hasTargetEl: !!targetEl,
+      });
       return;
     }
 
-    const canvas = this.renderer.domElement;
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
-    const needResize = canvas.width !== width || canvas.height !== height;
-    if (force || needResize) {
-      console.log("Resize needed", canvas.width, width, canvas.height, height);
+    const width = targetEl.clientWidth;
+    const height = targetEl.clientHeight;
 
-      this.renderer.setSize(width, height, false);
+    // ## Optimal Detail ##
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(width, height);
 
-      this.scene.remove(this.cylinderMesh);
-      if (this.cylinderMesh) {
-        this.cylinderMesh.geometry.dispose();
-        this.cylinderMesh.material.dispose(); // Texture is shared, don't dispose.
-      }
-      this._createCylinder(); // Will use current targetElement dimensions
-      // this._createRedIndexLines(); // Re-create red lines based on new cylinder size
+    // ## Maintain Camera Perspective ##
 
-      // Adjust camera position to frame the (potentially new sized) cylinder
-      // Fit cylinder (length `actualCylinderLength`, diameter `2 * actualCylinderRadius`)
-      const actualCylinderRadius =
-        this.cylinderMesh.geometry.parameters.radiusTop;
-      const actualCylinderLength = this.cylinderMesh.geometry.parameters.height;
+    // To ensure the rendered view is simply a magnified version of a smaller view,
+    // we need to make sure that the visible area of the scene at a given distance
+    // from the camera remains constant. In Three.js, the PerspectiveCamera's
+    // vertical field of view (fov) and the canvas's aspect ratio determine what
+    // is visible.
+    // So we need to adjust the fov based on the canvas height.
 
-      const fovRad = THREE.MathUtils.degToRad(this.camera.fov);
-      console.log(4, fovRad);
-      const distToFitHeight = actualCylinderRadius / Math.tan(fovRad / 2);
-      const distToFitWidth =
-        actualCylinderLength / 2 / (Math.tan(fovRad / 2) * this.camera.aspect);
+    // The desired visible height of the scene at the camera's z-position.
+    let visibleHeight = this.actualCylHeight;
 
-      camera.aspect = canvas.clientWidth / canvas.clientHeight;
-      camera.position.x = 0;
-      camera.position.y = 0;
-      this.camera.position.z =
-        Math.max(distToFitHeight, distToFitWidth) * 1.1 + actualCylinderRadius; // 1.1 for padding
-      console.log(5, this.camera.position.z);
-      // this.camera.position.z = 1000;
-      camera.lookAt(0, 0, 0);
-      camera.updateProjectionMatrix();
+    // Display with extra height if the aspect ratio isn't wide enough to display
+    // the cylinder without clipping.
+    const ctAspectRatio = width / height;
+    if (ctAspectRatio < this.actualCylAspectRatio) {
+      visibleHeight *= this.actualCylAspectRatio / ctAspectRatio;
     }
 
-    // const width = this.targetElement.clientWidth;
-    // const height = this.targetElement.clientHeight;
-    // console.log(1, this.targetElement, width, height);
-
-    // this.renderer.setSize(width, height);
-    // camera.aspect = width / height;
-
-    //------------------
-
-    // // Adjust cylinder geometry or camera to fit
-    // // Keep cylinder L = 3 * D. D is 2 * radius.
-    // let cylinderRadius, cylinderLength;
-
-    // // Option: Scale cylinder to fit div
-    // const typicalAspectRatio = 3 / 1; // Cylinder L/D
-    // const divAspect = width / height;
-
-    // if (divAspect > typicalAspectRatio) {
-    //   // Div is wider than typical cylinder aspect
-    //   // Fit to height
-    //   cylinderRadius = height / 2.5;
-    // } else {
-    //   // Div is taller or equal aspect
-    //   // Fit to width (L = width)
-    //   cylinderRadius = width / typicalAspectRatio / 2.5;
-    // }
-    // cylinderLength = typicalAspectRatio * (cylinderRadius * 2);
-
-    // // Update cylinder geometry (if needed, or scale mesh)
-    // // For simplicity, let's assume the initial geometry is okay and we adjust camera
-    // // Or, rebuild geometry (more complex to do on each resize for existing texture mapping)
-    // // Scaling the mesh is easier:
-    // if (
-    //   this.cylinderMesh.geometry.parameters.radiusTop !== cylinderRadius ||
-    //   this.cylinderMesh.geometry.parameters.height !== cylinderLength
-    // ) {
-    //   console.log("Updating cylinder geometry");
-    //   console.log(
-    //     0,
-    //     this.cylinderMesh.geometry.parameters.radiusTop,
-    //     cylinderRadius,
-    //     this.cylinderMesh.geometry.parameters.height,
-    //     cylinderLength
-    //   );
-    //   // Recreate geometry (this might be heavy) or scale the mesh
-    //   // Simple scaling for now:
-    //   const oldRadius = this.cylinderMesh.geometry.parameters.radiusTop;
-    //   //const oldLength = this.cylinderMesh.geometry.parameters.height;
-    //   //this.cylinderMesh.scale.set(cylinderLength/oldLength, cylinderRadius/oldRadius, cylinderRadius/oldRadius);
-    //   // Re-creating is safer for UVs and complex interactions
-    //   this.scene.remove(this.cylinderMesh);
-    //   this.cylinderMesh.geometry.dispose();
-    //   this.cylinderMesh.material.dispose(); // Texture is shared, don't dispose.
-    //   this._createCylinder(); // Will use current targetElement dimensions
-    //   // this._createRedIndexLines(); // Re-create red lines based on new cylinder size
-    // }
-
-    // // Adjust camera position to frame the (potentially new sized) cylinder
-    // // Fit cylinder (length `actualCylinderLength`, diameter `2 * actualCylinderRadius`)
-    // const actualCylinderRadius =
-    //   this.cylinderMesh.geometry.parameters.radiusTop;
-    // const actualCylinderLength = this.cylinderMesh.geometry.parameters.height;
-
-    // console.log(1, actualCylinderRadius, actualCylinderLength);
-
-    // const fovRad = THREE.MathUtils.degToRad(camera.fov);
-    // const distToFitHeight = actualCylinderRadius / Math.tan(fovRad / 2);
-    // const distToFitWidth =
-    //   actualCylinderLength / 2 / (Math.tan(fovRad / 2) * camera.aspect);
-
-    // camera.position.x = 0;
-    // camera.position.y = 0;
-    // camera.position.z =
-    //   Math.max(distToFitHeight, distToFitWidth) * 1.1 + actualCylinderRadius; // 1.1 for padding
-    // camera.lookAt(0, 0, 0);
-    // camera.updateProjectionMatrix();
+    const fov = 2 * Math.atan(visibleHeight / (2 * camera.position.z));
+    camera.fov = THREE.MathUtils.radToDeg(fov);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix(); // crucial after changing camera parameters!
   }
 
   _animationLoop(timestamp) {
     if (!this.isRunning) return;
 
+    // Throttle animation loop to spare the battery
     const delta = timestamp - this.lastTimestamp;
-    // Throttle animation loop to save CPU in case monitor refresh rate is too fast
-    const maxRefreshRateHz = 30;
-    if (delta < 1000 / maxRefreshRateHz) {
-      this.animationFrameId = window.requestAnimationFrame(this._animationLoop);
-      return;
+    const actualRateHz = Math.round(1000 / delta);
+    if (actualRateHz < this.maxRateHz) {
+      // // Show actual refresh rate in console
+      // if (this.lastTimestamp !== -1 && actualRateHz !== this.lastRateHz)
+      //   console.log(`Refresh rate: ${actualRateHz} Hz`);
+      this.lastRateHz = actualRateHz;
+      this.lastTimestamp = timestamp;
+
+      // ## Animation ##
+      if (this.cylinderMesh) {
+        // Spinning 'upwards' on its horizontal axis
+        this.cylinderMesh.rotation.x = timestamp * -0.0001;
+      }
+
+      this.renderer.render(this.scene, this.camera);
     }
-    // // Show actual refresh rate in console
-    // if (this.lastTimestamp !== -1) {
-    //   const refreshRate = Math.round(1000 / delta);
-    //   console.log(`Refresh rate: ${refreshRate} Hz`);
-    // }
-    this.lastTimestamp = timestamp;
 
-    // this.cylinderMesh.rotation.z = Math.PI / 2;
-    this.cylinderMesh.rotation.x = timestamp * -0.0001;
-
-    this.renderer.render(this.scene, this.camera);
-
-    if (this.isRunning) {
-      this.animationFrameId = window.requestAnimationFrame(this._animationLoop);
-    }
+    this.animationFrameId = window.requestAnimationFrame(this._animationLoop);
   }
 
   destroy() {
