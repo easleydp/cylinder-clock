@@ -79,10 +79,10 @@ class CylinderClock {
     // this.scene.add(ambientLight);
     const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
     this.scene.add(hemisphereLight);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
     directionalLight.position.set(50, 148, 7.5); // Experiment with position
     this.scene.add(directionalLight);
-    const directionalLight2 = new THREE.DirectionalLight(0xffffff, 1.2);
+    const directionalLight2 = new THREE.DirectionalLight(0xffffff, 1.6);
     directionalLight2.position.set(-5, -10, 7.5); // Experiment with position
     this.scene.add(directionalLight2);
 
@@ -191,12 +191,12 @@ class CylinderClock {
       map: textures.textureColor,
       normalMap: textures.textureNormal,
       // How much the normal map affects the material. Typical ranges are 0-1. Default is a Vector2 set to (1,1).
-      normalScale: new THREE.Vector2(1, 1),
+      normalScale: new THREE.Vector2(2, 2),
       displacementMap: textures.textureHeight,
       displacementScale: 0.1, // How much the displacement map affects the mesh
       displacementBias: 0, // Added to the scaled sample of the displacement map
       roughnessMap: textures.textureRough,
-      roughness: 0.35, // 0.0 means perfectly shiny, 0.0 means fully matt
+      roughness: 0.25, // 0.0 means perfectly shiny, 1.0 means fully matt
       aoMap: textures.texture2AO,
       aoMapIntensity: 1, // Intensity of the ambient occlusion effect. Range is 0-1, where 0 disables ambient occlusion
       metalnessMap: textures.textureMetal,
