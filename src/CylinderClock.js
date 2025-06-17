@@ -40,6 +40,12 @@ class CylinderClock {
       Math.max(this.majorMarkerAxialWidth, this.minorMarkerAxialWidth) / 2 +
       0.02;
 
+    // The number of major markers (minute markers) that are rendered around the circumference.
+    this.numMajorMarkers = 5;
+    // The of minor markers rendered between each adjacent pair of major (minute) markers. So
+    // a value of 11 gives 5 second gaps (60 / (11 + 1)).
+    this.numMinorMarkersBetweenMajor = 11;
+
     this.isRunning = false;
     this.animationFrameId = null;
     this.lastTimestamp = -1; // Last timestamp for animation loop
@@ -217,10 +223,8 @@ class CylinderClock {
   }
 
   _createMarkers() {
-    const numMajorMarkers = 5;
-    const numMinorMarkersBetweenMajor = 11;
     const totalMarkersPerEnd =
-      numMajorMarkers * (1 + numMinorMarkersBetweenMajor);
+      this.numMajorMarkers * (1 + this.numMinorMarkersBetweenMajor);
     const baseAngleIncrement = (2 * Math.PI) / totalMarkersPerEnd;
 
     const cylinderMarkerPlacementX =
@@ -230,9 +234,24 @@ class CylinderClock {
       cylinderMarkerPlacementX,
     ];
 
+    // We will adopt the convention that the horizontal line running along the
+    // front of the cylinder is 0°.
+    // We want the first major marker to be towards the front of the cylinder and
+    // to correspond with the last whole minute (of 'time now'). So this marker
+    // should be positioned at an angle between 0 and 2π/numMajorMarkers.
+    const timeNow = Date.now();
+    const oneMinute = 1000 * 60;
+    const progress = (timeNow % oneMinute) / oneMinute; // Climbs from 0.0 to (<) 1.0 every minute
+
+    const angleOffset =
+      // An initial 90° offset to make front 0°
+      Math.PI / 2 -
+      // Extra offset to shift the latest minute to somewhere between 0° and 360°/numMajorMarkers
+      (progress * Math.PI * 2) / this.numMajorMarkers;
+
     markerXPositions.forEach((markerCenterX) => {
       for (let i = 0; i < totalMarkersPerEnd; i++) {
-        const isMajor = i % (numMinorMarkersBetweenMajor + 1) === 0;
+        const isMajor = i % (this.numMinorMarkersBetweenMajor + 1) === 0;
 
         const axialWidth = isMajor
           ? this.majorMarkerAxialWidth
@@ -244,7 +263,7 @@ class CylinderClock {
           ? this.majorMarkerCircumferentialLength
           : this.minorMarkerCircumferentialLength;
 
-        const markerCenterAngle = i * baseAngleIncrement;
+        const markerCenterAngle = i * baseAngleIncrement + angleOffset;
 
         const markerGeom = this._createDeformedMarkerGeometry(
           axialWidth,
@@ -254,8 +273,19 @@ class CylinderClock {
           markerCenterX,
           markerCenterAngle
         );
+        // TODO: remove temp debug colours (restore 0x666666 below)
+        const color =
+          i === 0
+            ? 0xff0000
+            : i === 12
+            ? 0x00ff00
+            : i === 24
+            ? 0x0000ff
+            : i === 36
+            ? 0xcccccc
+            : 0x666666;
         const markerMaterial = new THREE.MeshStandardMaterial({
-          color: 0x666666,
+          color: color, //0x666666,
           metalness: 0.4,
           roughness: 0.4,
         });
@@ -491,8 +521,11 @@ class CylinderClock {
 
       // ## Animation ##
       if (this.cylinderGroup) {
-        // Spinning 'upwards' on its horizontal axis
-        this.cylinderGroup.rotation.x = timestamp * -0.0001;
+        // Cylinder spins 'upwards' on its horizontal axis.
+        // If numMajorMarkers is (e.g.) 5 then the cylinder should rotate once every 5 minutes.
+        const cycleDuration = this.numMajorMarkers * 60 * 1000;
+        const progress = (timestamp % cycleDuration) / cycleDuration; // Climbs from 0.0 to (<) 1.0 every cycle
+        this.cylinderGroup.rotation.x = -Math.PI * 2 * progress;
       }
 
       this.renderer.render(this.scene, this.camera);
