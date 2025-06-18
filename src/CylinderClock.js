@@ -1,6 +1,160 @@
 import * as THREE from "three";
 import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
+import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
+import { TessellateModifier } from "three/addons/modifiers/TessellateModifier.js";
 
+// Helper function to convert number to words (simplified for 1-59)
+function numberToWords(num) {
+  const ones = [
+    "",
+    "One",
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Six",
+    "Seven",
+    "Eight",
+    "Nine",
+    "Ten",
+    "Eleven",
+    "Twelve",
+    "Thirteen",
+    "Fourteen",
+    "Fifteen",
+    "Sixteen",
+    "Seventeen",
+    "Eighteen",
+    "Nineteen",
+  ];
+  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty"];
+
+  if (num === 0) return "Zero"; // Should not happen for minutes in this context often
+  if (num < 20) return ones[num];
+  const digitOne = num % 10;
+  const digitTen = Math.floor(num / 10);
+  return tens[digitTen] + (digitOne !== 0 ? " " + ones[digitOne] : "");
+}
+
+// British English Time Text Generation
+function getTimeStringENGB(date) {
+  var min = date.getMinutes(),
+    hr = date.getHours(),
+    past = min <= 30,
+    pastTo = past ? " past " : " to ";
+
+  if (!past) hr++;
+
+  hr = hr > 12 ? hr - 12 : hr;
+  min = past ? min : 60 - min;
+
+  //widest: return "24 minutes past 12";
+  if (min === 0) return hr + " o'clock";
+  if (min === 15) return "quarter" + pastTo + hr;
+  if (min === 30) return "half" + pastTo + hr;
+  if (min % 5 === 0) return min + pastTo + hr;
+  return min + " minute" + (min !== 1 ? "s" : "") + pastTo + hr;
+  // const h24 = date.getHours();
+  // const m = date.getMinutes();
+
+  // const H_display = h24 % 12 === 0 ? 12 : h24 % 12;
+  // const H_next_h24 = (h24 + 1) % 24;
+  // const H_next_display = H_next_h24 % 12 === 0 ? 12 : H_next_h24 % 12;
+
+  // const hourWords = {
+  //   1: "One",
+  //   2: "Two",
+  //   3: "Three",
+  //   4: "Four",
+  //   5: "Five",
+  //   6: "Six",
+  //   7: "Seven",
+  //   8: "Eight",
+  //   9: "Nine",
+  //   10: "Ten",
+  //   11: "Eleven",
+  //   12: "Twelve",
+  // };
+
+  // if (m === 0) return `${hourWords[H_display]} o'clock`;
+  // if (m === 1) return `One minute past ${hourWords[H_display]}`;
+  // if (m > 1 && m < 15)
+  //   return `${numberToWords(m)} minutes past ${hourWords[H_display]}`;
+  // if (m === 15) return `Quarter past ${hourWords[H_display]}`;
+  // if (m > 15 && m < 30)
+  //   return `${numberToWords(m)} minutes past ${hourWords[H_display]}`;
+  // if (m === 30) return `Half past ${hourWords[H_display]}`;
+
+  // const minutes_to = 60 - m;
+  // if (m > 30 && m < 45) {
+  //   return `${numberToWords(minutes_to)} minutes to ${
+  //     hourWords[H_next_display]
+  //   }`;
+  // }
+  // if (m === 45) return `Quarter to ${hourWords[H_next_display]}`;
+  // if (m > 45 && m < 59) {
+  //   return `${numberToWords(minutes_to)} minutes to ${
+  //     hourWords[H_next_display]
+  //   }`;
+  // }
+  // if (m === 59) return `One minute to ${hourWords[H_next_display]}`;
+  // return ""; // Should not happen
+}
+
+// American English Time Text Generation
+function getTimeStringENUS(date) {
+  const h24 = date.getHours();
+  const m = date.getMinutes();
+
+  const H_display_num = h24 % 12 === 0 ? 12 : h24 % 12;
+  const h_next_24 = (h24 + 1) % 24;
+  const H_next_display_num = h_next_24 % 12 === 0 ? 12 : h_next_24 % 12;
+
+  const hourWords = {
+    // Using numerals for hours as per example, but spec seems to imply words sometimes.
+    // Sticking to numbers for H_display_num for consistency with "10 thirty"
+    1: "1",
+    2: "2",
+    3: "3",
+    4: "4",
+    5: "5",
+    6: "6",
+    7: "7",
+    8: "8",
+    9: "9",
+    10: "10",
+    11: "11",
+    12: "12",
+  };
+
+  if (m === 0) return `${hourWords[H_display_num]} o'clock`;
+  if (m === 1) return `One minute after ${hourWords[H_display_num]}`;
+  if (m > 1 && m < 15)
+    return `${numberToWords(m)} minutes after ${hourWords[H_display_num]}`;
+  if (m === 15) return `Quarter after ${hourWords[H_display_num]}`;
+  if (m > 15 && m < 30)
+    return `${numberToWords(m)} minutes after ${hourWords[H_display_num]}`;
+  if (m === 30) return `${hourWords[H_display_num]} thirty`;
+
+  const minutes_to = 60 - m;
+  if (m > 30 && m < 45) {
+    if (minutes_to === 1)
+      return `One minute to ${hourWords[H_next_display_num]}`;
+    return `${numberToWords(minutes_to)} minutes to ${
+      hourWords[H_next_display_num]
+    }`;
+  }
+  if (m === 45) return `Quarter to ${hourWords[H_next_display_num]}`;
+  if (m > 45 && m < 59) {
+    if (minutes_to === 1)
+      return `One minute to ${hourWords[H_next_display_num]}`;
+    return `${numberToWords(minutes_to)} minutes to ${
+      hourWords[H_next_display_num]
+    }`;
+  }
+  if (m === 59) return `One minute to ${hourWords[H_next_display_num]}`;
+  return ""; // Should not happen
+}
 class CylinderClock {
   constructor(targetElement, options = {}) {
     if (!(targetElement instanceof HTMLElement)) {
@@ -45,6 +199,11 @@ class CylinderClock {
     // The of minor markers rendered between each adjacent pair of major (minute) markers. So
     // a value of 11 gives 5 second gaps (60 / (11 + 1)).
     this.numMinorMarkersBetweenMajor = 11;
+
+    // Text config
+    this.textSize = 1;
+    this.textDepth = 0.1;
+    this.baseCurveSegments = 16;
 
     this.isRunning = false;
     this.animationFrameId = null;
@@ -114,7 +273,7 @@ class CylinderClock {
     this.cylinderGroup = new THREE.Group();
     this.scene.add(this.cylinderGroup);
     await this._createCylinder();
-    this._createMarkers();
+    this._createMarkersAndText();
 
     // ## Responsive Resizing ##
     this._onResize = this._onResize.bind(this);
@@ -124,9 +283,29 @@ class CylinderClock {
     // Initial resize call to set everything up.
     this._onResize();
 
+    await scheduler.yield();
     // Start animation
     this._animationLoop = this._animationLoop.bind(this);
     this.animationFrameId = window.requestAnimationFrame(this._animationLoop);
+  }
+
+  /**
+   * Loads font for cylinder.
+   * @returns Promise that resolves to a font.
+   */
+  async _loadFont() {
+    const loader = new FontLoader();
+    const path =
+      "https://threejs.org/examples/fonts/helvetiker_regular.typeface.json";
+    return new Promise((resolve, reject) => {
+      const onLoad = (font) => {
+        resolve(font);
+      };
+      const onErr = (err) => {
+        reject("Failed to load font " + path);
+      };
+      loader.load(path, onLoad, null, onErr);
+    });
   }
 
   /**
@@ -159,7 +338,7 @@ class CylinderClock {
               resolve([key, tex]);
             };
             const onErr = (err) => {
-              reject("Failed to load " + path);
+              reject("Failed to load texture " + path);
             };
             loader.load(path, onLoad, null, onErr);
           } else {
@@ -187,7 +366,9 @@ class CylinderClock {
       bevelSegments: 2, // Use more segments for a smoother bevel
     });
     const geometry = new THREE.LatheGeometry(points, 64);
+    // TODO: Load textures and font in parallel
     const textures = (this.textures = await this._loadTextures());
+    this.font = await this._loadFont();
     const material = new THREE.MeshStandardMaterial({
       map: textures.textureColor,
       normalMap: textures.textureNormal,
@@ -222,9 +403,10 @@ class CylinderClock {
     this.cylinderGroup.add(mesh);
   }
 
-  _createMarkers() {
+  _createMarkersAndText() {
+    const numMajorMarkers = this.numMajorMarkers;
     const totalMarkersPerEnd =
-      this.numMajorMarkers * (1 + this.numMinorMarkersBetweenMajor);
+      numMajorMarkers * (1 + this.numMinorMarkersBetweenMajor);
     const baseAngleIncrement = (2 * Math.PI) / totalMarkersPerEnd;
 
     const cylinderMarkerPlacementX =
@@ -247,10 +429,17 @@ class CylinderClock {
       // An initial 90° offset to make front 0°
       Math.PI / 2 -
       // Extra offset to shift the latest minute to somewhere between 0° and 360°/numMajorMarkers
-      (progress * Math.PI * 2) / this.numMajorMarkers;
+      (progress * Math.PI * 2) / numMajorMarkers;
+
+    // TODO: Use this instead of the one recreated in the loop
+    // const material = new THREE.MeshStandardMaterial({
+    //   color: 0x666666,
+    //   metalness: 0.4,
+    //   roughness: 0.4,
+    // });
 
     markerXPositions.forEach((markerCenterX) => {
-      for (let i = 0; i < totalMarkersPerEnd; i++) {
+      for (let i = 0, j = 0; i < totalMarkersPerEnd; i++) {
         const isMajor = i % (this.numMinorMarkersBetweenMajor + 1) === 0;
 
         const axialWidth = isMajor
@@ -284,15 +473,90 @@ class CylinderClock {
             : i === 36
             ? 0xcccccc
             : 0x666666;
-        const markerMaterial = new THREE.MeshStandardMaterial({
+        const material = new THREE.MeshStandardMaterial({
           color: color, //0x666666,
           metalness: 0.4,
           roughness: 0.4,
         });
-        const marker = new THREE.Mesh(markerGeom, markerMaterial);
+        const marker = new THREE.Mesh(markerGeom, material);
         this.cylinderGroup.add(marker);
+
+        // # Add text #
+        if (isMajor && markerCenterX > 0) {
+          // Assuming 5 major/minute markers:
+          // For the 1st marker we want to display time now (t).
+          // For the 2nd marker we want to display time 1 minute hence (t+1).
+          // For the 3rd marker we want to display time 2 minutes hence (t+2).
+          // For the 4th marker we want to display time 2 minutes ago (t-2).
+          // For the 5th marker we want to display time 1 minute ago (t-1).
+          const offsetMinutes =
+            j < numMajorMarkers / 2 ? j : j - numMajorMarkers;
+
+          const timeNowToLastMinute = Math.floor(timeNow / (1000 * 60));
+          const textGeom = this._createTextGeom(
+            markerCenterAngle,
+            timeNowToLastMinute + offsetMinutes
+          );
+          this.cylinderGroup.add(new THREE.Mesh(textGeom, material));
+          j++;
+        }
       }
     });
+  }
+
+  _createTextGeom(markerCenterAngle, timeInMinutes) {
+    const displayText = getTimeStringENGB(new Date(timeInMinutes * 60 * 1000));
+
+    const geometryParams = {
+      font: this.font,
+      size: this.textSize,
+      depth: this.textDepth,
+      curveSegments: this.baseCurveSegments,
+      bevelEnabled: false,
+    };
+    let textGeo = new TextGeometry(displayText, geometryParams);
+
+    const tessellateModifier = new TessellateModifier(
+      this.textSize / 24, // maxEdgeLength: e.g., textSize / 5 or a fixed value like 0.4. Adjust as needed.
+      // Smaller values = more detail = more polygons.
+      12 // maxIterations: How many times to repeat the subdivision. Default is often fine.
+    );
+    // const tessellateModifier = new TessellateModifier(
+    //   this.textSize / 12, // maxEdgeLength: e.g., textSize / 5 or a fixed value like 0.4. Adjust as needed.
+    //   // Smaller values = more detail = more polygons.
+    //   4 // maxIterations: How many times to repeat the subdivision. Default is often fine.
+    // );
+    textGeo = tessellateModifier.modify(textGeo);
+    textGeo.computeBoundingBox();
+    const textBoundingBox = textGeo.boundingBox;
+    const textWidth = textBoundingBox.max.x - textBoundingBox.min.x;
+    const textHeight = textBoundingBox.max.y - textBoundingBox.min.y;
+
+    const positions = textGeo.attributes.position.array;
+    for (let i = 0; i < positions.length / 3; i++) {
+      const idx = i * 3;
+      const originalX = positions[idx],
+        originalY = positions[idx + 1],
+        originalZ = positions[idx + 2];
+
+      // Map text's X to cylinder's length (world X-axis), centered
+      const mappedX = originalX - textBoundingBox.min.x - textWidth / 2;
+
+      // Map text's Y (height) and Z (extrusion) to cylinder's curved surface (YZ plane)
+      const cylRadius = this.cylDiameter / 2;
+      const verticalOffsetInText =
+        originalY - textBoundingBox.min.y - textHeight / 2;
+      const angleOffsetForCharHeight = verticalOffsetInText / cylRadius;
+      const currentWrappedAngle = markerCenterAngle - angleOffsetForCharHeight;
+      const effectiveRadius = cylRadius + originalZ; // originalZ is extrusion depth from TextGeometry
+
+      positions[idx] = mappedX;
+      positions[idx + 1] = effectiveRadius * Math.cos(currentWrappedAngle);
+      positions[idx + 2] = effectiveRadius * Math.sin(currentWrappedAngle);
+    }
+    textGeo.attributes.position.needsUpdate = true;
+    textGeo.computeVertexNormals();
+    return textGeo;
   }
 
   // Deformed markers (as opposed to simple cubes) may be OTT given how small the markers are
@@ -528,7 +792,14 @@ class CylinderClock {
         this.cylinderGroup.rotation.x = -Math.PI * 2 * progress;
       }
 
-      this.renderer.render(this.scene, this.camera);
+      // The first render() can take over 100ms (which causes Chrome to issue a warning), so schedule for later.
+      if ("scheduler" in globalThis) {
+        scheduler.postTask(() => this.renderer.render(this.scene, this.camera));
+      } else {
+        setTimeout(() => {
+          this.renderer.render(this.scene, this.camera);
+        }, 0);
+      }
     }
 
     this.animationFrameId = window.requestAnimationFrame(this._animationLoop);
@@ -568,6 +839,8 @@ class CylinderClock {
     // Note: this.textureCanvas is a DOM element, not directly Three.js managed beyond CanvasTexture
     for (const [key, tex] of Object.entries(this.textures || {}))
       if (tex) tex.dispose();
+
+    this.font = null;
 
     if (this.renderer) {
       this.renderer.dispose();
