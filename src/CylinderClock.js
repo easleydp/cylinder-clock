@@ -238,6 +238,12 @@ class CylinderClock {
     if (this.isRunning) return;
     this.isRunning = true;
 
+    // OffscreenCanvas
+    const canvasEl = document.createElement("canvas");
+    const canvas = canvasEl.transferControlToOffscreen();
+    this.targetElement.innerHTML = ""; // Clear existing content, if any
+    this.targetElement.appendChild(canvasEl);
+
     // Scene
     this.scene = new THREE.Scene();
 
@@ -252,9 +258,12 @@ class CylinderClock {
     this.camera.position.z = 30;
 
     // ## Renderer Setup ##
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    this.renderer = new THREE.WebGLRenderer({
+      canvas: canvas,
+      antialias: true,
+      alpha: true,
+    });
     // renderer size set in onResize
-    this.targetElement.appendChild(this.renderer.domElement);
 
     // ## Lighting ##
     // const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
@@ -739,14 +748,6 @@ class CylinderClock {
     const width = targetEl.clientWidth;
     const height = targetEl.clientHeight;
 
-    // ## Optimal Detail ##
-    const pixelRatio = window.devicePixelRatio;
-    renderer.setSize(
-      Math.floor(width * pixelRatio),
-      Math.floor(height * pixelRatio),
-      false
-    );
-
     // ## Maintain Camera Perspective ##
 
     // To ensure the rendered view is simply a magnified version of a smaller view,
@@ -771,6 +772,14 @@ class CylinderClock {
     camera.fov = THREE.MathUtils.radToDeg(fov);
     camera.aspect = width / height;
     camera.updateProjectionMatrix(); // crucial after changing camera parameters!
+
+    // ## Optimal Detail ##
+    const pixelRatio = window.devicePixelRatio;
+    renderer.setSize(
+      Math.floor(width * pixelRatio),
+      Math.floor(height * pixelRatio),
+      false
+    );
   }
 
   _animationLoop(timestamp) {
