@@ -253,7 +253,6 @@ class CylinderClock {
 
     // ## Renderer Setup ##
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    this.renderer.setPixelRatio(window.devicePixelRatio);
     // renderer size set in onResize
     this.targetElement.appendChild(this.renderer.domElement);
 
@@ -741,8 +740,12 @@ class CylinderClock {
     const height = targetEl.clientHeight;
 
     // ## Optimal Detail ##
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(width, height);
+    const pixelRatio = window.devicePixelRatio;
+    renderer.setSize(
+      Math.floor(width * pixelRatio),
+      Math.floor(height * pixelRatio),
+      false
+    );
 
     // ## Maintain Camera Perspective ##
 
