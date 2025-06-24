@@ -2,6 +2,11 @@ import * as THREE from "three";
 import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
 import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
 import { TessellateModifier } from "three/addons/modifiers/TessellateModifier.js";
+import { RectAreaLightUniformsLib } from "three/addons/lights/RectAreaLightUniformsLib.js";
+import { RectAreaLightHelper } from "three/addons/helpers/RectAreaLightHelper.js";
+// import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+// import Stats from "three/addons/libs/stats.module.js";
+import { GUI } from "dat.gui";
 
 // Helper function to convert number to words (simplified for 1-59)
 function numberToWords(num) {
@@ -155,6 +160,32 @@ function getTimeStringENUS(date) {
   if (m === 59) return `One minute to ${hourWords[H_next_display_num]}`;
   return ""; // Should not happen
 }
+
+class ColorGUIHelper {
+  constructor(object, prop) {
+    this.object = object;
+    this.prop = prop;
+  }
+  get value() {
+    return `#${this.object[this.prop].getHexString()}`;
+  }
+  set value(hexString) {
+    this.object[this.prop].set(hexString);
+  }
+}
+
+class DegRadHelper {
+  constructor(obj, prop) {
+    this.obj = obj;
+    this.prop = prop;
+  }
+  get value() {
+    return THREE.MathUtils.radToDeg(this.obj[this.prop]);
+  }
+  set value(v) {
+    this.obj[this.prop] = THREE.MathUtils.degToRad(v);
+  }
+}
 class CylinderClock {
   constructor(targetElement, options = {}) {
     if (!(targetElement instanceof HTMLElement)) {
@@ -266,16 +297,7 @@ class CylinderClock {
     // renderer size set in onResize
 
     // ## Lighting ##
-    // const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
-    // this.scene.add(ambientLight);
-    const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
-    this.scene.add(hemisphereLight);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    directionalLight.position.set(50, 148, 7.5); // Experiment with position
-    this.scene.add(directionalLight);
-    const directionalLight2 = new THREE.DirectionalLight(0xffffff, 1.6);
-    directionalLight2.position.set(-5, -10, 7.5); // Experiment with position
-    this.scene.add(directionalLight2);
+    this._createLighting(this.scene);
 
     // ## Cylinder Creation ##
     this.cylinderGroup = new THREE.Group();
@@ -295,6 +317,76 @@ class CylinderClock {
     // Start animation
     this._animationLoop = this._animationLoop.bind(this);
     this.animationFrameId = window.requestAnimationFrame(this._animationLoop);
+  }
+
+  _createLighting(scene) {
+    // const gui = new GUI();
+    // const makeXYZGUI = function (gui, vector3, name, onChangeFn) {
+    //   const folder = gui.addFolder(name);
+    //   folder.add(vector3, "x", -10, 10).onChange(onChangeFn);
+    //   folder.add(vector3, "y", -10, 10).onChange(onChangeFn);
+    //   folder.add(vector3, "z", -10, 60).onChange(onChangeFn);
+    //   folder.open();
+    // };
+
+    // const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+    // scene.add(ambientLight);
+    // gui.add(ambientLight, "intensity", 0, 5, 0.01);
+
+    RectAreaLightUniformsLib.init();
+    const rectLight = new THREE.RectAreaLight(0xffffff, 30, 50, 4);
+    rectLight.position.set(0, -10, 55);
+    rectLight.rotation.x = THREE.MathUtils.degToRad(30);
+    scene.add(rectLight);
+
+    // const helper = new RectAreaLightHelper(rectLight);
+    // rectLight.add(helper);
+    // gui.addColor(new ColorGUIHelper(rectLight, "color"), "value").name("color");
+    // gui.add(rectLight, "intensity", 0, 30);
+    // gui.add(rectLight, "width", 0, 50);
+    // gui.add(rectLight, "height", 0, 40);
+    // gui
+    //   .add(new DegRadHelper(rectLight.rotation, "x"), "value", -180, 180)
+    //   .name("x rotation");
+    // gui
+    //   .add(new DegRadHelper(rectLight.rotation, "y"), "value", -180, 180)
+    //   .name("y rotation");
+    // gui
+    //   .add(new DegRadHelper(rectLight.rotation, "z"), "value", -180, 180)
+    //   .name("z rotation");
+    // makeXYZGUI(gui, rectLight.position, "position");
+
+    // const hemisphereLight = new THREE.HemisphereLight(0x666666, 0xffffff, 1.5);
+    // scene.add(hemisphereLight);
+    // const direcLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    // direcLight.position.set(50, 148, 7.5);
+    // scene.add(direcLight);
+    // const direcLight2 = new THREE.DirectionalLight(0xffffff, 1.6);
+    // direcLight2.position.set(-5, -10, 7.5);
+    // scene.add(direcLight2);
+
+    const direcLightTop = new THREE.DirectionalLight(0xffffff, 0.25);
+    direcLightTop.position.set(1.2, 4.0, -1.0);
+    scene.add(direcLightTop);
+
+    const direcLightBottom = new THREE.DirectionalLight(0xffffff, 0.3);
+    direcLightBottom.position.set(-1.0, -3.8, -1.0);
+    scene.add(direcLightBottom);
+
+    // const helper = new THREE.DirectionalLightHelper(
+    //   direcLightBottom,
+    //   5,
+    //   0xff0000
+    // );
+    // scene.add(helper);
+
+    // gui.add(direcLightBottom, "intensity", 0, 5, 0.01);
+    // gui.add(direcLightBottom.position, "x", -2, 2);
+    // gui.add(direcLightBottom.position, "y", -10, 10);
+    // gui.add(direcLightBottom.position, "z", -20, 20);
+    // gui.add(light.target.position, "x", -5, 5);
+    // gui.add(light.target.position, "y", 0, 10);
+    // gui.add(light.target.position, "z", -10, 10);
   }
 
   /**
@@ -862,6 +954,8 @@ class CylinderClock {
         );
       }
     }
+
+    // TODO: What about lights? They have a dispose() method so presumably we need to call.
 
     this.targetElement.innerHTML = ""; // Clear the target div
 
