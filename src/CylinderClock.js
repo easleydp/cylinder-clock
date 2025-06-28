@@ -313,6 +313,7 @@ class CylinderClock {
       alpha: true,
     });
     this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     // renderer size set in onResize
 
     // ## Lighting ##
