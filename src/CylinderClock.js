@@ -538,8 +538,9 @@ class CylinderClock {
 
   _createRedIndexLines() {
     const points = [];
-    const pencilLength = this.minorMarkerAxialWidth * 0.8;
-    const pencilRadius = 0.02;
+    const pencilRadius = this.majorMarkerAxialWidth / 8;
+    const pencilLength = this.majorMarkerAxialWidth * 2.5;
+
     points.push(new THREE.Vector2(0, 0)); // Tip
     points.push(new THREE.Vector2(pencilRadius, pencilLength * 0.2));
     points.push(new THREE.Vector2(pencilRadius, pencilLength));
@@ -559,13 +560,17 @@ class CylinderClock {
     const lineLeft = new THREE.Mesh(geometry, material);
     const lineRight = new THREE.Mesh(geometry, material);
 
-    const y = this.cylDiameter / 2 + 0.1;
-    const x = this.cylAxialLength / 2 - this.markerEndBuffer;
+    const y = 0; // Vertical center
+    const z = this.cylDiameter / 2 + 0.1; // Slightly in front of the cylinder
+    const x = this.cylAxialLength / 2 - pencilLength + 0.2;
 
-    lineLeft.position.set(-x, y, 0);
-    lineLeft.rotation.z = Math.PI;
+    lineLeft.position.set(-x, y, z);
+    lineRight.position.set(x, y, z);
 
-    lineRight.position.set(x, y, 0);
+    // The lathe geometry creates the pencil pointing along the +Y axis.
+    // We need to rotate it around the Z-axis to make it horizontal and point inwards.
+    lineLeft.rotation.z = MathUtils.degToRad(90); // Point right (inwards)
+    lineRight.rotation.z = MathUtils.degToRad(-90); // Point left (inwards)
 
     this.scene.add(lineLeft, lineRight);
     this.redIndexLines = [lineLeft, lineRight];
