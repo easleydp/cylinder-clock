@@ -248,6 +248,7 @@ class CylinderClock {
     this.renderer = null;
     this.cylinderGroup = null;
     this.textLines = [];
+    this.redIndexLines = [];
 
     (async () => {
       try {
@@ -321,6 +322,7 @@ class CylinderClock {
     this.scene.add(this.cylinderGroup);
     await this._createCylinder();
     this._createMarkersAndText();
+    this._createRedIndexLines();
 
     // ## Responsive Resizing ##
     this._onResize = this._onResize.bind(this);
@@ -532,6 +534,41 @@ class CylinderClock {
     // Orient the cylinder horizontally
     mesh.rotation.z = HALF_PI;
     this.cylinderGroup.add(mesh);
+  }
+
+  _createRedIndexLines() {
+    const points = [];
+    const pencilLength = this.minorMarkerAxialWidth * 0.8;
+    const pencilRadius = 0.02;
+    points.push(new THREE.Vector2(0, 0)); // Tip
+    points.push(new THREE.Vector2(pencilRadius, pencilLength * 0.2));
+    points.push(new THREE.Vector2(pencilRadius, pencilLength));
+    points.push(new THREE.Vector2(0, pencilLength));
+
+    const geometry = new THREE.LatheGeometry(points, 12);
+    const material = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(this.options.redLineColor),
+      transmission: 1.0,
+      roughness: 0.1,
+      metalness: 0.0,
+      ior: 1.5,
+      transparent: true,
+      opacity: 0.7,
+    });
+
+    const lineLeft = new THREE.Mesh(geometry, material);
+    const lineRight = new THREE.Mesh(geometry, material);
+
+    const y = this.cylDiameter / 2 + 0.1;
+    const x = this.cylAxialLength / 2 - this.markerEndBuffer;
+
+    lineLeft.position.set(-x, y, 0);
+    lineLeft.rotation.z = Math.PI;
+
+    lineRight.position.set(x, y, 0);
+
+    this.scene.add(lineLeft, lineRight);
+    this.redIndexLines = [lineLeft, lineRight];
   }
 
   _createMarkersAndText() {
@@ -992,9 +1029,13 @@ class CylinderClock {
       this.resizeObserver.unobserve(this.targetElement);
     }
 
-    // Dispose Three.js objects
     if (this.scene) {
-      // Traverse and dispose geometries, materials, textures
+      this.redIndexLines.forEach((line) => {
+        if (line.geometry) line.geometry.dispose();
+        if (line.material) line.material.dispose();
+        this.scene.remove(line);
+      });
+
       this.scene.traverse((object) => {
         if (object.geometry) object.geometry.dispose();
         if (object.material) {
