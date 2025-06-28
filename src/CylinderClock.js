@@ -199,7 +199,7 @@ class CylinderClock {
       language: "en-US",
       textColor: "#1C1C1C", // Dark graphite
       cylinderSurfaceColor: "#F5F5DC", // Ivory like
-      redLineColor: "rgba(255, 0, 0, 0.7)",
+      redLineColor: "rgb(255, 40, 40)",
       majorMarkColor: "#1C1C1C", // Dark graphite
       minorMarkColor: "#333333", // Slightly lighter graphite
       fontFamily: "Arial, sans-serif",
@@ -557,7 +557,9 @@ class CylinderClock {
     const pencilLength = this.majorMarkerAxialWidth * 2.5;
 
     points.push(new THREE.Vector2(0, 0)); // Tip
-    points.push(new THREE.Vector2(pencilRadius, pencilLength * 0.2));
+    points.push(new THREE.Vector2(pencilRadius * 0.33, 0.02));
+    points.push(new THREE.Vector2(pencilRadius * 0.9, pencilLength * 0.05));
+    points.push(new THREE.Vector2(pencilRadius, pencilLength * 0.075));
     points.push(new THREE.Vector2(pencilRadius, pencilLength));
     points.push(new THREE.Vector2(0, pencilLength));
 
@@ -568,6 +570,7 @@ class CylinderClock {
       roughness: 0.1,
       metalness: 0.0,
       ior: 1.5,
+      thickness: 0.15,
       transparent: true,
       opacity: 0.7,
     });
@@ -579,7 +582,7 @@ class CylinderClock {
 
     const y = 0; // Vertical center
     const z = this.cylDiameter / 2 + 0.5; // Slightly in front of the cylinder
-    const x = this.cylAxialLength / 2 - pencilLength + 0.2;
+    const x = this.cylAxialLength / 2 - pencilLength + 0.1;
 
     lineLeft.position.set(-x, y, z);
     lineRight.position.set(x, y, z);
@@ -624,12 +627,11 @@ class CylinderClock {
       // Extra offset to shift the latest minute to somewhere between 0° and 360°/numMajorMarkers
       (progress * TAU) / numMajorMarkers;
 
-    // TODO: Use this instead of the one recreated in the loop
-    // const material = new THREE.MeshStandardMaterial({
-    //   color: 0x666666,
-    //   metalness: 0.4,
-    //   roughness: 0.4,
-    // });
+    const material = new THREE.MeshStandardMaterial({
+      color: 0x777777,
+      metalness: 0.4,
+      roughness: 0.4,
+    });
 
     markerXPositions.forEach((markerCenterX) => {
       for (let i = 0, j = 0; i < totalMarkersPerEnd; i++) {
@@ -657,22 +659,6 @@ class CylinderClock {
           markerCenterX,
           markerCenterAngle
         );
-        // TODO: remove temp debug colours (restore 0x666666 below)
-        const color =
-          i === 0
-            ? 0xff0000
-            : i === 12
-            ? 0x00ff00
-            : i === 24
-            ? 0x0000ff
-            : i === 36
-            ? 0xcccccc
-            : 0x666666;
-        const material = new THREE.MeshStandardMaterial({
-          color: color, //0x666666,
-          metalness: 0.4,
-          roughness: 0.4,
-        });
         const marker = new THREE.Mesh(markerGeom, material);
         this.cylinderGroup.add(marker);
 
