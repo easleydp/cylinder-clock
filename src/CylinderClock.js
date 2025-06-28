@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { MathUtils } from "three";
 import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
 import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
 import { TessellateModifier } from "three/addons/modifiers/TessellateModifier.js";
@@ -161,6 +162,18 @@ function getTimeStringENUS(date) {
   return ""; // Should not happen
 }
 
+const TAU = 2 * Math.PI;
+const HALF_PI = Math.PI / 2;
+
+/**
+ * Wraps an angle to the range [0, 2π) using euclidean modulo.
+ * @param {number} angle - The angle to wrap.
+ * @returns {number} Wrapped angle in [0, 2π)
+ */
+function wrapAngle(angle) {
+  return MathUtils.euclideanModulo(angle, TAU);
+}
+
 class ColorGUIHelper {
   constructor(object, prop) {
     this.object = object;
@@ -180,12 +193,13 @@ class DegRadHelper {
     this.prop = prop;
   }
   get value() {
-    return THREE.MathUtils.radToDeg(this.obj[this.prop]);
+    return MathUtils.radToDeg(this.obj[this.prop]);
   }
   set value(v) {
-    this.obj[this.prop] = THREE.MathUtils.degToRad(v);
+    this.obj[this.prop] = MathUtils.degToRad(v);
   }
 }
+
 class CylinderClock {
   constructor(targetElement, options = {}) {
     if (!(targetElement instanceof HTMLElement)) {
@@ -234,7 +248,7 @@ class CylinderClock {
     // Text config
     this.textSize = 1;
     this.textDepth = 0.1;
-    this.baseCurveSegments = 16;
+    this.baseCurveSegments = 12;
 
     this.isRunning = false;
     this.animationFrameId = null;
@@ -317,6 +331,22 @@ class CylinderClock {
     // Start animation
     this._animationLoop = this._animationLoop.bind(this);
     this.animationFrameId = window.requestAnimationFrame(this._animationLoop);
+
+    // Once a minute we'll update the oldest text line (while it's hidden round
+    // the back of the cylinder). Skip first call if < 10 seconds from now.
+    let firstCall = true;
+    const loop = () => {
+      const now = new Date();
+      const msUntilNextMinute =
+        60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
+      setTimeout(() => {
+        //if (!firstCall || msUntilNextMinute > 10 * 1000)
+        this._updateOldestTextLine();
+        firstCall = false;
+        loop();
+      }, msUntilNextMinute);
+    };
+    loop();
   }
 
   _createLighting(scene) {
@@ -336,7 +366,7 @@ class CylinderClock {
     RectAreaLightUniformsLib.init();
     const rectLight = new THREE.RectAreaLight(0xffffff, 30, 50, 4);
     rectLight.position.set(0, -10, 55);
-    rectLight.rotation.x = THREE.MathUtils.degToRad(30);
+    rectLight.rotation.x = MathUtils.degToRad(30);
     scene.add(rectLight);
 
     // const helper = new RectAreaLightHelper(rectLight);
@@ -499,7 +529,7 @@ class CylinderClock {
     mesh.geometry.attributes.uv2 = mesh.geometry.attributes.uv;
 
     // Orient the cylinder horizontally
-    mesh.rotation.z = Math.PI / 2;
+    mesh.rotation.z = HALF_PI;
     this.cylinderGroup.add(mesh);
   }
 
@@ -507,7 +537,7 @@ class CylinderClock {
     const numMajorMarkers = this.numMajorMarkers;
     const totalMarkersPerEnd =
       numMajorMarkers * (1 + this.numMinorMarkersBetweenMajor);
-    const baseAngleIncrement = (2 * Math.PI) / totalMarkersPerEnd;
+    const baseAngleIncrement = TAU / totalMarkersPerEnd;
 
     const cylinderMarkerPlacementX =
       this.cylAxialLength / 2 - this.markerEndBuffer;
@@ -515,6 +545,8 @@ class CylinderClock {
       -cylinderMarkerPlacementX,
       cylinderMarkerPlacementX,
     ];
+
+    const textLines = (this.textLines = []);
 
     // We will adopt the convention that the horizontal line running along the
     // front of the cylinder is 0°.
@@ -527,9 +559,9 @@ class CylinderClock {
 
     const angleOffset =
       // An initial 90° offset to make front 0°
-      Math.PI / 2 -
+      HALF_PI -
       // Extra offset to shift the latest minute to somewhere between 0° and 360°/numMajorMarkers
-      (progress * Math.PI * 2) / numMajorMarkers;
+      (progress * TAU) / numMajorMarkers;
 
     // TODO: Use this instead of the one recreated in the loop
     // const material = new THREE.MeshStandardMaterial({
@@ -552,7 +584,9 @@ class CylinderClock {
           ? this.majorMarkerCircumferentialLength
           : this.minorMarkerCircumferentialLength;
 
-        const markerCenterAngle = i * baseAngleIncrement + angleOffset;
+        const markerCenterAngle = wrapAngle(
+          i * baseAngleIncrement + angleOffset
+        );
 
         const markerGeom = this._createDeformedMarkerGeometry(
           axialWidth,
@@ -591,22 +625,55 @@ class CylinderClock {
           // For the 5th marker we want to display time 1 minute ago (t-1).
           const offsetMinutes =
             j < numMajorMarkers / 2 ? j : j - numMajorMarkers;
-
           const timeNowToLastMinute = Math.floor(timeNow / (1000 * 60));
-          const textGeom = this._createTextGeom(
-            markerCenterAngle,
-            timeNowToLastMinute + offsetMinutes
+          const timeInMinutes = timeNowToLastMinute + offsetMinutes;
+          const displayText = getTimeStringENGB(
+            new Date(timeInMinutes * 60 * 1000)
           );
-          this.cylinderGroup.add(new THREE.Mesh(textGeom, material));
+
+          const textGeom = this._createTextGeom(markerCenterAngle, displayText);
+          const mesh = new THREE.Mesh(textGeom, material);
+          textLines.push({
+            mesh,
+            timeInMinutes,
+            displayText, // Just for diag purposes
+          });
+          this.cylinderGroup.add(mesh);
           j++;
         }
       }
     });
   }
 
-  _createTextGeom(markerCenterAngle, timeInMinutes) {
-    const displayText = getTimeStringENGB(new Date(timeInMinutes * 60 * 1000));
+  _updateOldestTextLine() {
+    const line = this.textLines.reduce((minItem, currentItem) =>
+      currentItem.timeInMinutes < minItem.timeInMinutes ? currentItem : minItem
+    );
+    line.timeInMinutes += this.numMajorMarkers;
+    const lineTime = line.timeInMinutes * 60 * 1000;
+    const displayText = getTimeStringENGB(new Date(lineTime));
+    line.displayText = displayText;
 
+    // To calculate angle, consider that if the text was for 'now', it would be
+    // displayed at 90° (0° being the 'top' of the cylinder). So, we need to
+    // subtract time 'now' from lineTime, calculate what that is as a proportion
+    // of the cylinder circumference, and then add a pro-rata of 360° to 90°.
+    // We also need to take account of the fact the cylinder is rotating.
+    const timeNow = Date.now();
+    const cylCycleTime = this.numMajorMarkers * 60 * 1000; // e.g. 5 minutes (in ms)
+    const angle = wrapAngle(
+      HALF_PI +
+        (TAU * (lineTime - timeNow)) / cylCycleTime -
+        this.cylinderGroup.rotation.x
+    );
+
+    line.mesh.geometry.dispose();
+    console.time(`_createTextGeom "${displayText}"`);
+    line.mesh.geometry = this._createTextGeom(angle, displayText);
+    console.timeEnd(`_createTextGeom "${displayText}"`);
+  }
+
+  _createTextGeom(angle, displayText) {
     const geometryParams = {
       font: this.font,
       size: this.textSize,
@@ -639,7 +706,7 @@ class CylinderClock {
         originalY = positions[idx + 1],
         originalZ = positions[idx + 2];
 
-      // Map text's X to cylinder's length (world X-axis), centered
+      // Map text's X to cylinder's length (world X-axis), centred
       const mappedX = originalX - textBoundingBox.min.x - textWidth / 2;
 
       // Map text's Y (height) and Z (extrusion) to cylinder's curved surface (YZ plane)
@@ -647,7 +714,7 @@ class CylinderClock {
       const verticalOffsetInText =
         originalY - textBoundingBox.min.y - textHeight / 2;
       const angleOffsetForCharHeight = verticalOffsetInText / cylRadius;
-      const currentWrappedAngle = markerCenterAngle - angleOffsetForCharHeight;
+      const currentWrappedAngle = angle - angleOffsetForCharHeight;
       const effectiveRadius = cylRadius + originalZ; // originalZ is extrusion depth from TextGeometry
 
       positions[idx] = mappedX;
@@ -786,7 +853,7 @@ class CylinderClock {
     if (b > 0 && bevelSegments > 0) {
       const topBevelCenter = { x: p2.x, y: p3.y };
       for (let i = 1; i < bevelSegments; i++) {
-        const angle = (Math.PI / 2) * (1 - i / bevelSegments);
+        const angle = HALF_PI * (1 - i / bevelSegments);
         const x = topBevelCenter.x + b * Math.cos(angle);
         const y = topBevelCenter.y + b * Math.sin(angle);
         points.push(new THREE.Vector2(x, y));
@@ -809,7 +876,7 @@ class CylinderClock {
     if (b > 0 && bevelSegments > 0) {
       const bottomBevelCenter = { x: p5.x, y: p4.y };
       for (let i = 1; i < bevelSegments; i++) {
-        const angle = -(Math.PI / 2) * (i / bevelSegments);
+        const angle = -HALF_PI * (i / bevelSegments);
         const x = bottomBevelCenter.x + b * Math.cos(angle);
         const y = bottomBevelCenter.y + b * Math.sin(angle);
         points.push(new THREE.Vector2(x, y));
@@ -861,7 +928,7 @@ class CylinderClock {
     }
 
     const fov = 2 * Math.atan(visibleHeight / (2 * camera.position.z));
-    camera.fov = THREE.MathUtils.radToDeg(fov);
+    camera.fov = MathUtils.radToDeg(fov);
     camera.aspect = width / height;
     camera.updateProjectionMatrix(); // crucial after changing camera parameters!
 
@@ -893,7 +960,7 @@ class CylinderClock {
         // If numMajorMarkers is (e.g.) 5 then the cylinder should rotate once every 5 minutes.
         const cycleDuration = this.numMajorMarkers * 60 * 1000;
         const progress = (timestamp % cycleDuration) / cycleDuration; // Climbs from 0.0 to (<) 1.0 every cycle
-        this.cylinderGroup.rotation.x = -Math.PI * 2 * progress;
+        this.cylinderGroup.rotation.x = wrapAngle(-TAU * progress);
       }
 
       // The first render() can take over 100ms (which causes Chrome to issue a warning), so schedule for later.
