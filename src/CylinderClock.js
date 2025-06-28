@@ -312,6 +312,7 @@ class CylinderClock {
       antialias: true,
       alpha: true,
     });
+    this.renderer.shadowMap.enabled = true;
     // renderer size set in onResize
 
     // ## Lighting ##
@@ -368,7 +369,7 @@ class CylinderClock {
     // gui.add(ambientLight, "intensity", 0, 5, 0.01);
 
     RectAreaLightUniformsLib.init();
-    const rectLight = new THREE.RectAreaLight(0xffffff, 30, 50, 4);
+    const rectLight = new THREE.RectAreaLight(0xffffff, 27, 50, 4);
     rectLight.position.set(0, -10, 55);
     rectLight.rotation.x = MathUtils.degToRad(30);
     scene.add(rectLight);
@@ -399,8 +400,20 @@ class CylinderClock {
     // direcLight2.position.set(-5, -10, 7.5);
     // scene.add(direcLight2);
 
-    const direcLightTop = new THREE.DirectionalLight(0xffffff, 0.25);
-    direcLightTop.position.set(1.2, 4.0, -1.0);
+    const direcLightTop = new THREE.DirectionalLight(0xffffff, 0.4);
+    direcLightTop.position.set(1.2, 2.0, 4.5);
+    direcLightTop.castShadow = true;
+
+    // Configure the shadow camera
+    direcLightTop.shadow.camera.left = -this.cylAxialLength / 2 - 2;
+    direcLightTop.shadow.camera.right = this.cylAxialLength / 2 + 2;
+    direcLightTop.shadow.camera.top = this.cylDiameter / 2 + 2;
+    direcLightTop.shadow.camera.bottom = -this.cylDiameter / 2 - 2;
+    direcLightTop.shadow.camera.near = 0.5;
+    direcLightTop.shadow.camera.far = 50;
+    direcLightTop.shadow.mapSize.width = 2048; // default is 512
+    direcLightTop.shadow.mapSize.height = 2048; // default is 512
+
     scene.add(direcLightTop);
 
     const direcLightBottom = new THREE.DirectionalLight(0xffffff, 0.3);
@@ -524,6 +537,7 @@ class CylinderClock {
       //wireframe: true,
     });
     const mesh = new THREE.Mesh(geometry, material);
+    mesh.receiveShadow = true;
 
     // Ambient occlusion maps (aoMap) use a second set of UV coordinates, stored in geometry.attributes.uv2.
     // However, most geometries (like THREE.CylinderGeometry) only generate one UV set by default (geometry.attributes.uv),
@@ -558,10 +572,12 @@ class CylinderClock {
     });
 
     const lineLeft = new THREE.Mesh(geometry, material);
+    lineLeft.castShadow = true;
     const lineRight = new THREE.Mesh(geometry, material);
+    lineRight.castShadow = true;
 
     const y = 0; // Vertical center
-    const z = this.cylDiameter / 2 + 0.1; // Slightly in front of the cylinder
+    const z = this.cylDiameter / 2 + 0.5; // Slightly in front of the cylinder
     const x = this.cylAxialLength / 2 - pencilLength + 0.2;
 
     lineLeft.position.set(-x, y, z);
