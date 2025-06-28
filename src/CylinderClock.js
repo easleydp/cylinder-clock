@@ -44,17 +44,17 @@ function numberToWords(num) {
 
 // British English Time Text Generation
 function getTimeStringENGB(date) {
-  var min = date.getMinutes(),
-    hr = date.getHours(),
-    past = min <= 30,
-    pastTo = past ? " past " : " to ";
+  let min = date.getMinutes();
+  let hr = date.getHours();
+  const past = min <= 30;
+  const pastTo = past ? " past " : " to ";
 
   if (!past) hr++;
 
   hr = hr > 12 ? hr - 12 : hr;
   min = past ? min : 60 - min;
 
-  //widest: return "24 minutes past 12";
+  //widest possible example: return "24 minutes past 12";
   if (min === 0) return hr + " o'clock";
   if (min === 15) return "quarter" + pastTo + hr;
   if (min === 30) return "half" + pastTo + hr;
@@ -134,32 +134,19 @@ function getTimeStringENUS(date) {
   };
 
   if (m === 0) return `${hourWords[H_display_num]} o'clock`;
-  if (m === 1) return `One minute after ${hourWords[H_display_num]}`;
-  if (m > 1 && m < 15)
-    return `${numberToWords(m)} minutes after ${hourWords[H_display_num]}`;
-  if (m === 15) return `Quarter after ${hourWords[H_display_num]}`;
-  if (m > 15 && m < 30)
-    return `${numberToWords(m)} minutes after ${hourWords[H_display_num]}`;
   if (m === 30) return `${hourWords[H_display_num]} thirty`;
 
   const minutes_to = 60 - m;
-  if (m > 30 && m < 45) {
-    if (minutes_to === 1)
-      return `One minute to ${hourWords[H_next_display_num]}`;
-    return `${numberToWords(minutes_to)} minutes to ${
-      hourWords[H_next_display_num]
-    }`;
+  if (m > 30) {
+    if (minutes_to === 15) return `Quarter to ${hourWords[H_next_display_num]}`;
+    const minText =
+      minutes_to === 1 ? "One minute" : `${numberToWords(minutes_to)} minutes`;
+    return `${minText} to ${hourWords[H_next_display_num]}`;
+  } else {
+    if (m === 15) return `Quarter after ${hourWords[H_display_num]}`;
+    const minText = m === 1 ? "One minute" : `${numberToWords(m)} minutes`;
+    return `${minText} after ${hourWords[H_display_num]}`;
   }
-  if (m === 45) return `Quarter to ${hourWords[H_next_display_num]}`;
-  if (m > 45 && m < 59) {
-    if (minutes_to === 1)
-      return `One minute to ${hourWords[H_next_display_num]}`;
-    return `${numberToWords(minutes_to)} minutes to ${
-      hourWords[H_next_display_num]
-    }`;
-  }
-  if (m === 59) return `One minute to ${hourWords[H_next_display_num]}`;
-  return ""; // Should not happen
 }
 
 const TAU = 2 * Math.PI;
@@ -260,6 +247,7 @@ class CylinderClock {
     this.camera = null;
     this.renderer = null;
     this.cylinderGroup = null;
+    this.textLines = [];
 
     (async () => {
       try {
@@ -279,13 +267,28 @@ class CylinderClock {
     })();
   }
 
+  _getTimeStringFn() {
+    switch (this.options.language.toLowerCase()) {
+      case "en-gb":
+        return getTimeStringENGB;
+      case "en-us":
+        return getTimeStringENUS;
+      default:
+        console.warn(
+          `Unsupported language: ${this.options.language}, defaulting to en-US.`
+        );
+        return getTimeStringENUS;
+    }
+  }
+
   async _init() {
     if (this.isRunning) return;
     this.isRunning = true;
 
-    // OffscreenCanvas
+    // OffscreenCanvas can be used to improve performance by moving rendering to a worker.
+    // Here, we're using it on the main thread, which is fine, but the primary benefit
+    // is not realized without a worker.
     const canvasEl = document.createElement("canvas");
-    const canvas = canvasEl.transferControlToOffscreen();
     this.targetElement.innerHTML = ""; // Clear existing content, if any
     this.targetElement.appendChild(canvasEl);
 
@@ -304,7 +307,7 @@ class CylinderClock {
 
     // ## Renderer Setup ##
     this.renderer = new THREE.WebGLRenderer({
-      canvas: canvas,
+      canvas: canvasEl,
       antialias: true,
       alpha: true,
     });
@@ -327,7 +330,6 @@ class CylinderClock {
     // Initial resize call to set everything up.
     this._onResize();
 
-    await scheduler.yield();
     // Start animation
     this._animationLoop = this._animationLoop.bind(this);
     this.animationFrameId = window.requestAnimationFrame(this._animationLoop);
@@ -340,8 +342,8 @@ class CylinderClock {
       const msUntilNextMinute =
         60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
       setTimeout(() => {
-        //if (!firstCall || msUntilNextMinute > 10 * 1000)
-        this._updateOldestTextLine();
+        if (!firstCall || msUntilNextMinute > 10 * 1000)
+          this._updateOldestTextLine();
         firstCall = false;
         loop();
       }, msUntilNextMinute);
@@ -425,16 +427,14 @@ class CylinderClock {
    */
   async _loadFont() {
     const loader = new FontLoader();
+    // TODO: It's generally better to host font files locally with your
+    // project to avoid issues with external dependencies.
     const path =
       "https://threejs.org/examples/fonts/helvetiker_regular.typeface.json";
     return new Promise((resolve, reject) => {
-      const onLoad = (font) => {
-        resolve(font);
-      };
-      const onErr = (err) => {
-        reject("Failed to load font " + path);
-      };
-      loader.load(path, onLoad, null, onErr);
+      loader.load(path, resolve, undefined, (err) => {
+        reject(new Error(`Failed to load font from ${path}: ${err.message}`));
+      });
     });
   }
 
@@ -455,37 +455,33 @@ class CylinderClock {
     };
 
     const loader = new THREE.TextureLoader();
-    // Create array of promises, each resolving to `[key, texture|null]`
-    const promises = Object.entries(fileTails).reduce((accum, currVal) => {
-      accum.push(
-        new Promise((resolve, reject) => {
-          const [key, fileTail] = currVal;
-          if (fileTail) {
-            const path = `./assets/textures/${folder}/${fileStem}${fileTail}`;
-            const onLoad = (tex) => {
-              tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-              tex.repeat.set(2, 2);
-              resolve([key, tex]);
-            };
-            const onErr = (err) => {
-              reject("Failed to load texture " + path);
-            };
-            loader.load(path, onLoad, null, onErr);
-          } else {
-            resolve([key, null]);
+    const promises = Object.entries(fileTails).map(([key, fileTail]) => {
+      return new Promise((resolve, reject) => {
+        if (!fileTail) {
+          resolve([key, null]);
+          return;
+        }
+        const path = `./assets/textures/${folder}/${fileStem}${fileTail}`;
+        loader.load(
+          path,
+          (tex) => {
+            tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(2, 2);
+            resolve([key, tex]);
+          },
+          undefined,
+          (err) => {
+            reject(new Error(`Failed to load texture ${path}: ${err.message}`));
           }
-        })
-      );
-      return accum;
-    }, []);
-
-    return Promise.all(promises).then((values) => {
-      return values.reduce((accum, currVal) => {
-        const [key, texture] = currVal;
-        accum[key] = texture;
-        return accum;
-      }, {});
+        );
+      });
     });
+
+    const results = await Promise.all(promises);
+    return results.reduce((accum, [key, texture]) => {
+      accum[key] = texture;
+      return accum;
+    }, {});
   }
 
   async _createCylinder() {
@@ -496,9 +492,14 @@ class CylinderClock {
       bevelSegments: 2, // Use more segments for a smoother bevel
     });
     const geometry = new THREE.LatheGeometry(points, 64);
-    // TODO: Load textures and font in parallel
-    const textures = (this.textures = await this._loadTextures());
-    this.font = await this._loadFont();
+
+    const [textures, font] = await Promise.all([
+      this._loadTextures(),
+      this._loadFont(),
+    ]);
+    this.textures = textures;
+    this.font = font;
+
     const material = new THREE.MeshStandardMaterial({
       map: textures.textureColor,
       normalMap: textures.textureNormal,
@@ -547,6 +548,7 @@ class CylinderClock {
     ];
 
     const textLines = (this.textLines = []);
+    const getTimeString = this._getTimeStringFn();
 
     // We will adopt the convention that the horizontal line running along the
     // front of the cylinder is 0°.
@@ -627,7 +629,7 @@ class CylinderClock {
             j < numMajorMarkers / 2 ? j : j - numMajorMarkers;
           const timeNowToLastMinute = Math.floor(timeNow / (1000 * 60));
           const timeInMinutes = timeNowToLastMinute + offsetMinutes;
-          const displayText = getTimeStringENGB(
+          const displayText = getTimeString(
             new Date(timeInMinutes * 60 * 1000)
           );
 
@@ -651,7 +653,9 @@ class CylinderClock {
     );
     line.timeInMinutes += this.numMajorMarkers;
     const lineTime = line.timeInMinutes * 60 * 1000;
-    const displayText = getTimeStringENGB(new Date(lineTime));
+
+    const getTimeString = this._getTimeStringFn();
+    const displayText = getTimeString(new Date(lineTime));
     line.displayText = displayText;
 
     // To calculate angle, consider that if the text was for 'now', it would be
@@ -768,7 +772,7 @@ class CylinderClock {
             xEnd,   actualTopRadius * Math.cos(angleStart), actualTopRadius * Math.sin(angleStart), // p5
             xStart, actualTopRadius * Math.cos(angleEnd),   actualTopRadius * Math.sin(angleEnd),   // p6
             xEnd,   actualTopRadius * Math.cos(angleEnd),   actualTopRadius * Math.sin(angleEnd)    // p7
-        ]);
+    ]);
 
     // Consistent Counter-Clockwise (CCW) winding for faces (when viewed from the "outside" of
     // that face) is crucial for geometry.computeVertexNormals() to generate correct,
@@ -792,12 +796,11 @@ class CylinderClock {
 
             // Side face at xEnd (axial "right", CCW from outside this face)
             1, 5, 7,   1, 7, 3  // Quad p1-p5-p7-p3
-        ];
+    ];
 
     geometry.setAttribute("position", new THREE.BufferAttribute(vertices, 3));
     geometry.setIndex(indices);
     geometry.computeVertexNormals();
-
     return geometry;
   }
 
@@ -854,9 +857,12 @@ class CylinderClock {
       const topBevelCenter = { x: p2.x, y: p3.y };
       for (let i = 1; i < bevelSegments; i++) {
         const angle = HALF_PI * (1 - i / bevelSegments);
-        const x = topBevelCenter.x + b * Math.cos(angle);
-        const y = topBevelCenter.y + b * Math.sin(angle);
-        points.push(new THREE.Vector2(x, y));
+        points.push(
+          new THREE.Vector2(
+            topBevelCenter.x + b * Math.cos(angle),
+            topBevelCenter.y + b * Math.sin(angle)
+          )
+        );
       }
     }
 
@@ -877,9 +883,12 @@ class CylinderClock {
       const bottomBevelCenter = { x: p5.x, y: p4.y };
       for (let i = 1; i < bevelSegments; i++) {
         const angle = -HALF_PI * (i / bevelSegments);
-        const x = bottomBevelCenter.x + b * Math.cos(angle);
-        const y = bottomBevelCenter.y + b * Math.sin(angle);
-        points.push(new THREE.Vector2(x, y));
+        points.push(
+          new THREE.Vector2(
+            bottomBevelCenter.x + b * Math.cos(angle),
+            bottomBevelCenter.y + b * Math.sin(angle)
+          )
+        );
       }
     }
 
@@ -964,13 +973,9 @@ class CylinderClock {
       }
 
       // The first render() can take over 100ms (which causes Chrome to issue a warning), so schedule for later.
-      if ("scheduler" in globalThis) {
-        scheduler.postTask(() => this.renderer.render(this.scene, this.camera));
-      } else {
-        setTimeout(() => {
-          this.renderer.render(this.scene, this.camera);
-        }, 0);
-      }
+      setTimeout(() => {
+        if (this.renderer) this.renderer.render(this.scene, this.camera);
+      }, 0);
     }
 
     this.animationFrameId = window.requestAnimationFrame(this._animationLoop);
@@ -1004,37 +1009,30 @@ class CylinderClock {
           }
         }
       });
-      this.scene.clear(); // Recommended for removing all objects
+      this.scene.clear();
     }
 
-    // Note: this.textureCanvas is a DOM element, not directly Three.js managed beyond CanvasTexture
-    for (const [key, tex] of Object.entries(this.textures || {}))
+    for (const tex of Object.values(this.textures || {})) {
       if (tex) tex.dispose();
+    }
 
     this.font = null;
 
     if (this.renderer) {
       this.renderer.dispose();
-      if (this.renderer.domElement && this.renderer.domElement.parentElement) {
-        this.renderer.domElement.parentElement.removeChild(
-          this.renderer.domElement
-        );
-      }
     }
 
-    // TODO: What about lights? They have a dispose() method so presumably we need to call.
+    if (this.targetElement) {
+      this.targetElement.innerHTML = "";
+    }
 
-    this.targetElement.innerHTML = ""; // Clear the target div
-
-    // Nullify references
     this.scene = null;
     this.camera = null;
     this.renderer = null;
     this.cylinderGroup = null;
-    this.textureCanvas = null;
     this.textures = null;
-    this.redIndexLines = [];
-    this.options = null; // Allow options to be GC'd
+    this.textLines = [];
+    this.options = null;
   }
 }
 
