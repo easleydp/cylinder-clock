@@ -214,7 +214,7 @@ class CylinderClock {
     this.sceneHeight = this.cylDiameter + 0.5;
     this.sceneWidth = this.cylAxialLength + 2.0;
 
-    this.markerRadialHeight = 0.08; // Thickness of the marker (embossed'ness)
+    this.markerDepth = 0.06; // Thickness of the marker (embossed'ness)
 
     this.minorMarkerCircumferentialLength = 0.06;
     this.minorMarkerAxialWidth = 0.5; // Width along the cylinder's length
@@ -234,7 +234,7 @@ class CylinderClock {
 
     // Text config
     this.textSize = 1;
-    this.textDepth = 0.1;
+    this.textDepth = 0.08;
     this.baseCurveSegments = 12;
 
     this.isRunning = false;
@@ -640,9 +640,7 @@ class CylinderClock {
         const axialWidth = isMajor
           ? this.majorMarkerAxialWidth
           : this.minorMarkerAxialWidth;
-        const radialHeight = isMajor
-          ? this.markerRadialHeight
-          : this.markerRadialHeight / 4;
+        const radialHeight = isMajor ? this.markerDepth : this.markerDepth / 3;
         const circumferentialLength = isMajor
           ? this.majorMarkerCircumferentialLength
           : this.minorMarkerCircumferentialLength;
