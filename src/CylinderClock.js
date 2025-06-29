@@ -216,10 +216,10 @@ class CylinderClock {
 
     this.markerDepth = 0.06; // Thickness of the marker (embossed'ness)
 
-    this.minorMarkerCircumferentialLength = 0.06;
+    this.minorMarkerCircumferentialLength = this.cylDiameter / 85;
     this.minorMarkerAxialWidth = 0.5; // Width along the cylinder's length
 
-    this.majorMarkerCircumferentialLength = 0.18;
+    this.majorMarkerCircumferentialLength = this.cylDiameter / 35;
     this.majorMarkerAxialWidth = this.minorMarkerAxialWidth * 1.4;
 
     this.markerEndBuffer =
@@ -552,10 +552,10 @@ class CylinderClock {
   }
 
   _createRedIndexLines() {
-    const points = [];
-    const pencilRadius = this.majorMarkerAxialWidth / 8;
+    const pencilRadius = this.majorMarkerCircumferentialLength * 0.66;
     const pencilLength = this.majorMarkerAxialWidth * 2.5;
 
+    const points = [];
     points.push(new THREE.Vector2(0, 0)); // Tip
     points.push(new THREE.Vector2(pencilRadius * 0.33, 0.02));
     points.push(new THREE.Vector2(pencilRadius * 0.9, pencilLength * 0.05));
@@ -581,7 +581,7 @@ class CylinderClock {
     lineRight.castShadow = true;
 
     const y = 0; // Vertical center
-    const z = this.cylDiameter / 2 + 0.5; // Slightly in front of the cylinder
+    const z = this.cylDiameter / 2 + 0.3; // Slightly in front of the cylinder
     const x = this.cylAxialLength / 2 - pencilLength + 0.1;
 
     lineLeft.position.set(-x, y, z);
