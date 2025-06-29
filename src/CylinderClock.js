@@ -1013,12 +1013,12 @@ class CylinderClock {
         const cycleDuration = this.numMajorMarkers * 60 * 1000;
         const progress = (timestamp % cycleDuration) / cycleDuration; // Climbs from 0.0 to (<) 1.0 every cycle
         this.cylinderGroup.rotation.x = wrapAngle(-TAU * progress);
-      }
 
-      // The first render() can take over 100ms (which causes Chrome to issue a warning), so schedule for later.
-      setTimeout(() => {
-        if (this.renderer) this.renderer.render(this.scene, this.camera);
-      }, 0);
+        // The first render() can take over 250ms (which causes Chrome to issue a warning), so schedule for later.
+        setTimeout(() => {
+          if (this.renderer) this.renderer.render(this.scene, this.camera);
+        }, 0);
+      }
     }
 
     this.animationFrameId = window.requestAnimationFrame(this._animationLoop);
