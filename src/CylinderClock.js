@@ -319,9 +319,6 @@ class CylinderClock {
     // ## Lighting ##
     this._createLighting(this.scene);
 
-    // ## Cylinder Creation ##
-    this.cylinderGroup = new THREE.Group();
-    this.scene.add(this.cylinderGroup);
     await this._createCylinder();
     this._createMarkersAndText();
     this._createRedIndexLines();
@@ -556,7 +553,23 @@ class CylinderClock {
 
     // Orient the cylinder horizontally
     mesh.rotation.z = HALF_PI;
+
+    // Cylinder, markers and text will rotate together in a group
+    this.cylinderGroup = new THREE.Group();
     this.cylinderGroup.add(mesh);
+    // Rotate the coordinate system so that 0 degrees maps to the front of the
+    // horizontal cylinder (consistent with the red index lines) rather than the
+    // top. (This will make the code easier to understand when we add markers and
+    // text to the cylinder group.)
+    // To establish a new "zero-degree" orientation for our cylinder group we
+    // apply a one-time, initial rotation to a parent group. This
+    // effectively creates a new local coordinate system for our cylinder and its
+    // associated text & markers, simplifying the animation logic.
+    const cylinderParentGroup = new THREE.Group();
+    cylinderParentGroup.rotation.x = Math.PI / 2;
+    cylinderParentGroup.add(this.cylinderGroup);
+
+    this.scene.add(cylinderParentGroup);
   }
 
   _createRedIndexLines() {
@@ -597,8 +610,8 @@ class CylinderClock {
 
     // The lathe geometry creates the pencil pointing along the +Y axis.
     // We need to rotate it around the Z-axis to make it horizontal and point inwards.
-    lineLeft.rotation.z = MathUtils.degToRad(90); // Point right (inwards)
-    lineRight.rotation.z = MathUtils.degToRad(-90); // Point left (inwards)
+    lineLeft.rotation.z = HALF_PI; // Point right (inwards)
+    lineRight.rotation.z = -HALF_PI; // Point left (inwards)
 
     this.scene.add(lineLeft, lineRight);
     this.redIndexLines = [lineLeft, lineRight];
@@ -608,7 +621,7 @@ class CylinderClock {
     const numMajorMarkers = this.numMajorMarkers;
     const totalMarkersPerEnd =
       numMajorMarkers * (1 + this.numMinorMarkersBetweenMajor);
-    const baseAngleIncrement = TAU / totalMarkersPerEnd;
+    const markerAngleIncrement = TAU / totalMarkersPerEnd;
 
     const cylinderMarkerPlacementX =
       this.cylAxialLength / 2 - this.markerEndBuffer;
@@ -629,11 +642,9 @@ class CylinderClock {
     const oneMinute = 1000 * 60;
     const progress = (timeNow % oneMinute) / oneMinute; // Climbs from 0.0 to (<) 1.0 every minute
 
-    const angleOffset =
-      // An initial 90° offset to make front 0°
-      HALF_PI -
-      // Extra offset to shift the latest minute to somewhere between 0° and 360°/numMajorMarkers
-      (progress * TAU) / numMajorMarkers;
+    const angleMinuteShift =
+      // Offset to shift the latest minute to somewhere between 0° and 360°/numMajorMarkers
+      -(progress * TAU) / numMajorMarkers;
 
     const material = new THREE.MeshStandardMaterial({
       color: 0x777777,
@@ -653,8 +664,8 @@ class CylinderClock {
           ? this.majorMarkerCircumferentialLength
           : this.minorMarkerCircumferentialLength;
 
-        const markerCenterAngle = wrapAngle(
-          i * baseAngleIncrement + angleOffset
+        const markerAngle = wrapAngle(
+          i * markerAngleIncrement + angleMinuteShift
         );
 
         const markerGeom = this._createDeformedMarkerGeometry(
@@ -663,7 +674,7 @@ class CylinderClock {
           circumferentialLength,
           this.cylDiameter / 2,
           markerCenterX,
-          markerCenterAngle
+          markerAngle
         );
         const marker = new THREE.Mesh(markerGeom, material);
         this.cylinderGroup.add(marker);
@@ -688,11 +699,11 @@ class CylinderClock {
             new Date(timeInMinutes * 60 * 1000)
           );
 
-          const roundTheBack = this._roundTheBack(markerCenterAngle);
-          const textGeom = roundTheBack
+          const roundTheBack = this._roundTheBack(markerAngle);
+          const geom = roundTheBack
             ? new THREE.BufferGeometry()
-            : this._createTextGeom(markerCenterAngle, displayText);
-          const mesh = new THREE.Mesh(textGeom, material);
+            : this._createTextGeom(markerAngle, displayText);
+          const mesh = new THREE.Mesh(geom, material);
           textLines.push({
             mesh,
             timeInMinutes,
@@ -712,7 +723,7 @@ class CylinderClock {
    */
   _roundTheBack(angle) {
     const eightTau = TAU / 8;
-    return eightTau * 5 < angle && angle < eightTau * 7;
+    return eightTau * 3 < angle && angle < eightTau * 5;
   }
 
   _oldestTextLine() {
@@ -725,11 +736,7 @@ class CylinderClock {
     const oldest = this._oldestTextLine();
     const lineTime = oldest.timeInMinutes * 60 * 1000;
     const cylCycleTime = this.numMajorMarkers * 60 * 1000; // e.g. 5 minutes (in ms)
-    const angle = wrapAngle(
-      HALF_PI + (TAU * (lineTime - Date.now())) / cylCycleTime
-      // - this.cylinderGroup.rotation.x
-    );
-    console.log(10, angle, this._roundTheBack(angle));
+    const angle = wrapAngle((TAU * (lineTime - Date.now())) / cylCycleTime);
     return this._roundTheBack(angle);
   }
 
@@ -744,14 +751,13 @@ class CylinderClock {
     oldest.displayText = displayText;
 
     // To calculate angle, consider that if the text was for 'now', it would be
-    // displayed at 90° (0° being the 'top' of the cylinder). So, we need to
+    // displayed at 0° (i.e. front of the cylinder). So, we need to
     // subtract time 'now' from lineTime, calculate what that is as a proportion
-    // of the cylinder circumference, and then add a pro rata of 360° to 90°.
+    // of the cylinder circumference, and then add a pro rata of 360°.
     // We also need to take account of the fact the cylinder is rotating.
     const cylCycleTime = this.numMajorMarkers * 60 * 1000; // e.g. 5 minutes (in ms)
     const angle = wrapAngle(
-      HALF_PI +
-        (TAU * (lineTime - Date.now())) / cylCycleTime -
+      (TAU * (lineTime - Date.now())) / cylCycleTime -
         this.cylinderGroup.rotation.x
     );
 
