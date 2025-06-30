@@ -5,5 +5,6 @@ The /src folder contains the source files. Note that many of the files in here a
 
 - index.html
 - CylinderClock.js
+- CylinderClock.worker.js
 
 When implementing new features, don't take the opportunity to make unrelated changes to existing code unless they are relevant to the new feature. In particular, don't remove what you may consider to be redundant comments. Refactoring existing code is fine when this relates to implementing the new feature.
