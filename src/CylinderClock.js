@@ -293,6 +293,7 @@ class CylinderClock {
     // Here, we're using it on the main thread, which is fine, but the primary benefit
     // is not realized without a worker.
     const canvasEl = document.createElement("canvas");
+    const canvas = canvasEl.transferControlToOffscreen();
     this.targetElement.innerHTML = ""; // Clear existing content, if any
     this.targetElement.appendChild(canvasEl);
 
@@ -311,7 +312,7 @@ class CylinderClock {
 
     // ## Renderer Setup ##
     this.renderer = new THREE.WebGLRenderer({
-      canvas: canvasEl,
+      canvas: canvas,
       antialias: true,
       alpha: true,
     });
