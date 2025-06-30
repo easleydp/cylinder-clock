@@ -208,7 +208,7 @@ class CylinderClock {
       ...options,
     };
 
-    this.cylDiameter = 5;
+    this.cylDiameter = 3;
     this.cylAxialLength = 15;
     // We don't want the cylinder rendered right up against the canvas edges
     this.sceneHeight = this.cylDiameter + 0.5;
@@ -227,7 +227,10 @@ class CylinderClock {
       0.02;
 
     // The number of major markers (minute markers) that are rendered around the circumference.
-    this.numMajorMarkers = 5;
+    // Must be greater than 1. Sensible values start at 3. 4 or 5 works well.
+    this.numMajorMarkers = 4;
+    if (this.numMajorMarkers < 2)
+      throw new Error("numMajorMarkers must be greater than 1");
     // The of minor markers rendered between each adjacent pair of major (minute) markers. So
     // a value of 11 gives 5 second gaps (60 / (11 + 1)).
     this.numMinorMarkersBetweenMajor = 11;
@@ -338,7 +341,7 @@ class CylinderClock {
     // Monitor for oldest text line appearing round the back. Then
     // commence updating the oldest text line every one minute.
     const commenceUpdatingOldestTextLine = () => {
-      console.log("commenceUpdatingOldestTextLine");
+      // console.log("commenceUpdatingOldestTextLine");
       const oneMinute = 1000 * 60;
       let nextStartTime = Date.now();
       const loop2 = () => {
@@ -681,28 +684,25 @@ class CylinderClock {
 
         // # Add text #
         if (isMajor && markerCenterX > 0) {
-          // E.g. if 5 major/minute markers:
-          // For the 1st marker we want to display time now (t).
-          // For the 2nd marker we want to display time 1 minute hence (t+1).
-          // For the 3rd marker we want to display time 2 minutes hence (t+2).
-          // For the 4th marker we want to display time 2 minutes ago (t-2).
-          // For the 5th marker we want to display time 1 minute ago (t-1).
-          // HOWEVER, for efficiency, we skip creating a text geom if the text
-          // line is 'round the back' (which we deem to be an angle of between
-          // 5/8 and 7/8 TAU). Such lines will have their geom created in the
-          // regular one a minute text generation loop.
+          const roundTheBack = this._roundTheBack(markerAngle);
+          // To begin with (first pass) the first minute is always the last
+          // whole minute (which can be up one minute in the past). As the
+          // loop progresses, markerAngle is 'increasing' so we begin
+          // generating text lines projected into the future. We continue
+          // in this vain through the 'round the back' zone. Once we emerge
+          // out of this invisible rear quadrant we switch to generating
+          // historical text lines, since they may still be visible before
+          // disappearing over the top of the cylinder.
           const offsetMinutes =
-            j < numMajorMarkers / 2 ? j : j - numMajorMarkers;
-          const timeNowToLastMinute = Math.floor(timeNow / (1000 * 60));
+            j <= numMajorMarkers / 2 || roundTheBack ? j : j - numMajorMarkers;
+          const oneMinute = 1000 * 60;
+          const timeNowToLastMinute = Math.floor(timeNow / oneMinute);
           const timeInMinutes = timeNowToLastMinute + offsetMinutes;
           const displayText = getTimeString(
-            new Date(timeInMinutes * 60 * 1000)
+            new Date(timeInMinutes * oneMinute)
           );
 
-          const roundTheBack = this._roundTheBack(markerAngle);
-          const geom = roundTheBack
-            ? new THREE.BufferGeometry()
-            : this._createTextGeom(markerAngle, displayText);
+          const geom = this._createTextGeom(markerAngle, displayText);
           const mesh = new THREE.Mesh(geom, material);
           textLines.push({
             mesh,
@@ -741,7 +741,7 @@ class CylinderClock {
   }
 
   _updateOldestTextLine() {
-    console.log("_updateOldestTextLine");
+    // console.log("_updateOldestTextLine");
     const oldest = this._oldestTextLine();
     oldest.timeInMinutes += this.numMajorMarkers;
     const lineTime = oldest.timeInMinutes * 60 * 1000;
@@ -766,8 +766,11 @@ class CylinderClock {
   }
 
   _createTextGeom(angle, displayText) {
-    const tmpAngle = wrapAngle(angle + this.cylinderGroup.rotation.x);
-    console.time(`_createTextGeom "${displayText}" ${tmpAngle}`);
+    // const roundTheBack = this._roundTheBack(angle);
+    // const logMsg = `_createTextGeom "${displayText}" ${angle} ${
+    //   roundTheBack ? "(round the back)" : ""
+    // }`;
+    // console.time(logMsg);
     const geometryParams = {
       font: this.font,
       size: this.textSize,
@@ -817,7 +820,7 @@ class CylinderClock {
     }
     textGeo.attributes.position.needsUpdate = true;
     textGeo.computeVertexNormals();
-    console.timeEnd(`_createTextGeom "${displayText}" ${tmpAngle}`);
+    // console.timeEnd(logMsg);
     return textGeo;
   }
 
