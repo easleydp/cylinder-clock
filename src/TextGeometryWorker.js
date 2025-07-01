@@ -33,20 +33,8 @@ function createTextGeom(
   textDepth,
   baseCurveSegments,
   cylDiameter,
-  angle,
-  rotationX
+  angle
 ) {
-  const unrotatedAngle = THREE.MathUtils.euclideanModulo(
-    angle + rotationX,
-    2 * Math.PI
-  );
-  const roundTheBack =
-    (3 * Math.PI) / 4 < unrotatedAngle && unrotatedAngle < (5 * Math.PI) / 4;
-  const logMsg = `_createTextGeom "${displayText}" ${unrotatedAngle} ${
-    roundTheBack ? "(round the back)" : ""
-  }`;
-  console.time(logMsg);
-
   const geometryParams = {
     font: font,
     size: textSize,
@@ -91,7 +79,6 @@ function createTextGeom(
   }
   textGeo.attributes.position.needsUpdate = true;
   textGeo.computeVertexNormals();
-  //   console.timeEnd(logMsg);
   return textGeo;
 }
 
@@ -108,7 +95,6 @@ self.onmessage = async (e) => {
         baseCurveSegments,
         cylDiameter,
         angle,
-        rotationX,
       } = payload;
       const geometry = createTextGeom(
         displayText,
@@ -116,8 +102,7 @@ self.onmessage = async (e) => {
         textDepth,
         baseCurveSegments,
         cylDiameter,
-        angle,
-        rotationX
+        angle
       );
 
       const transferable = {

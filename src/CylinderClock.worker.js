@@ -935,7 +935,6 @@ class CylinderClockRenderer {
         baseCurveSegments: this.baseCurveSegments,
         cylDiameter: this.cylDiameter,
         angle: angle,
-        rotationX: this.cylinderGroup.rotation.x,
       },
     };
     // console.log("Posting msg:", msg);
