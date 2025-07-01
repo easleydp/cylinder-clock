@@ -229,6 +229,7 @@ class CylinderClockRenderer {
     this.redIndexLines = [];
     this.textures = null;
     this.font = null;
+    this.textGeometryWorker = null;
   }
 
   async init(canvas, options, initialWidth, initialHeight, pixelRatio) {
@@ -252,6 +253,46 @@ class CylinderClockRenderer {
 
     if (this.isRunning) return;
     this.isRunning = true;
+
+    this.textGeometryWorker = new Worker(
+      new URL("./TextGeometryWorker.js", import.meta.url),
+      { type: "module" }
+    );
+    this.textGeometryWorker.onmessage = (e) => {
+      const { type, payload } = e.data;
+      if (type === "geometry") {
+        const { geometry, originalPayload } = payload;
+        const { timeInMinutes } = originalPayload;
+
+        const textLine = this.textLines.find(
+          (tl) => tl.timeInMinutes === timeInMinutes
+        );
+        if (textLine) {
+          const newGeometry = new THREE.BufferGeometry();
+          newGeometry.setAttribute(
+            "position",
+            new THREE.BufferAttribute(new Float32Array(geometry.position), 3)
+          );
+          newGeometry.setAttribute(
+            "normal",
+            new THREE.BufferAttribute(new Float32Array(geometry.normal), 3)
+          );
+
+          textLine.mesh.geometry.dispose();
+          textLine.mesh.geometry = newGeometry;
+        } else {
+          console.error(
+            `TextGeometryWorker error - failed to find textLine with timeInMinutes=${timeInMinutes}`
+          );
+        }
+      } else if (type === "error") {
+        console.error(
+          "TextGeometryWorker error:",
+          payload.message,
+          payload.stack
+        );
+      }
+    };
 
     this.scene = new THREE.Scene();
 
@@ -411,23 +452,6 @@ class CylinderClockRenderer {
   }
 
   /**
-   * Loads font for cylinder.
-   * @returns Promise that resolves to a font.
-   */
-  async _loadFont() {
-    const loader = new FontLoader();
-    // TODO: It's generally better to host font files locally with your
-    // project to avoid issues with external dependencies.
-    const path =
-      "https://threejs.org/examples/fonts/helvetiker_regular.typeface.json";
-    return new Promise((resolve, reject) => {
-      loader.load(path, resolve, undefined, (err) => {
-        reject(new Error(`Failed to load font from ${path}: ${err.message}`));
-      });
-    });
-  }
-
-  /**
    * Loads textures for cylinder.
    * @returns Promise that resolves to a map of textures keyed by texture name.
    */
@@ -488,12 +512,8 @@ class CylinderClockRenderer {
     });
     const geometry = new THREE.LatheGeometry(points, 64);
 
-    const [textures, font] = await Promise.all([
-      this._loadTextures(),
-      this._loadFont(),
-    ]);
+    const [textures] = await Promise.all([this._loadTextures()]);
     this.textures = textures;
-    this.font = font;
 
     const material = new THREE.MeshStandardMaterial({
       map: textures.textureColor,
@@ -673,14 +693,14 @@ class CylinderClockRenderer {
             new Date(timeInMinutes * oneMinute)
           );
 
-          const geom = this._createTextGeom(markerAngle, displayText);
-          const mesh = new THREE.Mesh(geom, material);
-          textLines.push({
-            mesh,
+          const textLine = {
+            mesh: new THREE.Mesh(new THREE.BufferGeometry(), material),
             timeInMinutes,
             displayText, // Just for diag purposes
-          });
-          this.cylinderGroup.add(mesh);
+          };
+          textLines.push(textLine);
+          this.cylinderGroup.add(textLine.mesh);
+          this._requestCreateTextGeom(textLine, markerAngle);
           j++;
         }
       }
@@ -732,67 +752,7 @@ class CylinderClockRenderer {
         this.cylinderGroup.rotation.x
     );
 
-    oldest.mesh.geometry.dispose();
-    oldest.mesh.geometry = this._createTextGeom(angle, displayText);
-  }
-
-  _createTextGeom(angle, displayText) {
-    // const roundTheBack = this._roundTheBack(angle);
-    // const logMsg = `_createTextGeom "${displayText}" ${angle} ${
-    //   roundTheBack ? "(round the back)" : ""
-    // }`;
-    // console.time(logMsg);
-    const geometryParams = {
-      font: this.font,
-      size: this.textSize,
-      depth: this.textDepth,
-      curveSegments: this.baseCurveSegments,
-      bevelEnabled: false,
-    };
-    let textGeo = new TextGeometry(displayText, geometryParams);
-
-    const tessellateModifier = new TessellateModifier(
-      this.textSize / 24, // maxEdgeLength: e.g., textSize / 5 or a fixed value like 0.4. Adjust as needed.
-      // Smaller values = more detail = more polygons.
-      12 // maxIterations: How many times to repeat the subdivision. Default is often fine.
-    );
-    // const tessellateModifier = new TessellateModifier(
-    //   this.textSize / 12, // maxEdgeLength: e.g., textSize / 5 or a fixed value like 0.4. Adjust as needed.
-    //   // Smaller values = more detail = more polygons.
-    //   4 // maxIterations: How many times to repeat the subdivision. Default is often fine.
-    // );
-    textGeo = tessellateModifier.modify(textGeo);
-    textGeo.computeBoundingBox();
-    const textBoundingBox = textGeo.boundingBox;
-    const textWidth = textBoundingBox.max.x - textBoundingBox.min.x;
-    const textHeight = textBoundingBox.max.y - textBoundingBox.min.y;
-
-    const positions = textGeo.attributes.position.array;
-    for (let i = 0; i < positions.length / 3; i++) {
-      const idx = i * 3;
-      const originalX = positions[idx],
-        originalY = positions[idx + 1],
-        originalZ = positions[idx + 2];
-
-      // Map text's X to cylinder's length (world X-axis), centred
-      const mappedX = originalX - textBoundingBox.min.x - textWidth / 2;
-
-      // Map text's Y (height) and Z (extrusion) to cylinder's curved surface (YZ plane)
-      const cylRadius = this.cylDiameter / 2;
-      const verticalOffsetInText =
-        originalY - textBoundingBox.min.y - textHeight / 2;
-      const angleOffsetForCharHeight = verticalOffsetInText / cylRadius;
-      const currentWrappedAngle = angle - angleOffsetForCharHeight;
-      const effectiveRadius = cylRadius + originalZ; // originalZ is extrusion depth from TextGeometry
-
-      positions[idx] = mappedX;
-      positions[idx + 1] = effectiveRadius * Math.cos(currentWrappedAngle);
-      positions[idx + 2] = effectiveRadius * Math.sin(currentWrappedAngle);
-    }
-    textGeo.attributes.position.needsUpdate = true;
-    textGeo.computeVertexNormals();
-    // console.timeEnd(logMsg);
-    return textGeo;
+    this._requestCreateTextGeom(oldest, angle);
   }
 
   // Deformed markers (as opposed to simple cubes) may be OTT given how small the markers are
@@ -964,6 +924,24 @@ class CylinderClockRenderer {
     return points.reverse(); // We actually want the y coords going up
   }
 
+  _requestCreateTextGeom(textLine, angle) {
+    const msg = {
+      type: "generate",
+      payload: {
+        timeInMinutes: textLine.timeInMinutes,
+        displayText: textLine.displayText,
+        textSize: this.textSize,
+        textDepth: this.textDepth,
+        baseCurveSegments: this.baseCurveSegments,
+        cylDiameter: this.cylDiameter,
+        angle: angle,
+        rotationX: this.cylinderGroup.rotation.x,
+      },
+    };
+    // console.log("Posting msg:", msg);
+    this.textGeometryWorker.postMessage(msg);
+  }
+
   _onResize(width, height, pixelRatio) {
     this.pixelRatio = pixelRatio;
     if (!this.isRunning || !this.renderer || !this.camera) {
@@ -1069,6 +1047,10 @@ class CylinderClockRenderer {
 
     if (this.renderer) {
       this.renderer.dispose();
+    }
+
+    if (this.textGeometryWorker) {
+      this.textGeometryWorker.terminate();
     }
 
     this.scene = null;
