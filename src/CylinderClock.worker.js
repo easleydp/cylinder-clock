@@ -472,7 +472,7 @@ class CylinderClockRenderer {
       if (!fileTail) {
         return [key, null];
       }
-      const path = `./assets/textures/${folder}/${fileStem}${fileTail}`;
+      const path = `/assets/textures/${folder}/${fileStem}${fileTail}`;
       try {
         const response = await fetch(path);
         if (!response.ok) {
