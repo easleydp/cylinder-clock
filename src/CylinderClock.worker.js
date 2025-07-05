@@ -472,7 +472,13 @@ class CylinderClockRenderer {
       if (!fileTail) {
         return [key, null];
       }
-      const path = `/assets/textures/${folder}/${fileStem}${fileTail}`;
+      // TODO: Specifying an absolute path here doesn't seem right (not going to work if someone wants to use this library in their website).
+      // Couldn't get it working in both dev and production with relative paths:
+      //  Dev
+      //    const path = `./assets/textures/${folder}/${fileStem}${fileTail}`;
+      //  Production
+      //    const path = `./textures/${folder}/${fileStem}${fileTail}`;
+      const path = `/cylinder-clock/assets/textures/${folder}/${fileStem}${fileTail}`;
       try {
         const response = await fetch(path);
         if (!response.ok) {
