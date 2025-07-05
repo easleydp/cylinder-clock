@@ -280,6 +280,15 @@ class CylinderClockRenderer {
 
           textLine.mesh.geometry.dispose();
           textLine.mesh.geometry = newGeometry;
+          textLine.waitingForTextGeom = false;
+
+          // Make scene visible if we're no longer waiting for initial crop of text geometries
+          if (!this.scene.visible) {
+            const unreadyTextLine = this.textLines.find(
+              (tl) => tl.waitingForTextGeom === true
+            );
+            if (!unreadyTextLine) this.scene.visible = true;
+          }
         } else {
           console.error(
             `TextGeometryWorker error - failed to find textLine with timeInMinutes=${timeInMinutes}`
@@ -295,6 +304,7 @@ class CylinderClockRenderer {
     };
 
     this.scene = new THREE.Scene();
+    this.scene.visible = false; // Wait until all the textLines are initialised
 
     // ## Camera Setup ##
     // The initial camera setup. The aspect ratio and fov will be adjusted
@@ -702,6 +712,7 @@ class CylinderClockRenderer {
           const textLine = {
             mesh: new THREE.Mesh(new THREE.BufferGeometry(), material),
             timeInMinutes,
+            waitingForTextGeom: !roundTheBack,
             displayText, // Just for diag purposes
           };
           textLines.push(textLine);
