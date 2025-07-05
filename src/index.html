@@ -5,6 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>3D Cylinder Clock</title>
     <style>
+      /* Experimental: */
+      /* @media screen and (min-width: 320px) and (max-width: 767px) and (orientation: portrait) {
+        html {
+          transform: rotate(-90deg);
+          transform-origin: left top;
+          width: 100vh;
+          height: 100vw;
+          overflow-x: hidden;
+          position: absolute;
+          top: 100%;
+          left: 0;
+        }
+      } */
       body {
         margin: 0;
         overflow: hidden;
@@ -22,9 +35,9 @@
       } */
       /* Example of a dynamically sized div */
       #clockContainer {
-        width: 70vw;
-        height: 70vh;
-        border: 1px solid #ccc;
+        width: 100vw;
+        height: 100vh;
+        /* border: 1px solid #ccc; */
       }
       #clockContainer > canvas {
         width: 100%;
