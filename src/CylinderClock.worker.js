@@ -462,7 +462,7 @@ class CylinderClockRenderer {
    * Loads textures for cylinder.
    * @returns Promise that resolves to a map of textures keyed by texture name.
    *
-   * Note: We originally used `THREE.TextureLoader` for extra convenience but since
+   * Note: We originally used `THREE.TextureLoader` for convenience but since
    * moving this routine to a web worker we have load the texture image resource
    * files ourselves, convert them to image bitmaps, then pass each to the
    * `THREE.Texture` constructor.
@@ -485,15 +485,12 @@ class CylinderClockRenderer {
           resolve([key, null]);
           return;
         }
-        // NOTE: The `url` string parameter passed to the `URL` ctor must be static so it can be analysed (so can't use a variable).
         const path = new URL(
+          // NOTE: The `url` string parameter passed to the `URL` ctor must be static so
+          // it can be analysed by Vite. This means we can't use a variable!
           `./textures/${folder}/${fileStem}${fileTail}`,
           import.meta.url
         ).href;
-        console.log(0, {
-          url: `./textures/${folder}/${fileStem}${fileTail}`,
-          path,
-        });
         fetch(path)
           .then((response) => {
             if (!response.ok) {
