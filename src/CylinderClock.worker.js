@@ -1,8 +1,5 @@
 import * as THREE from "three";
 import { MathUtils } from "three";
-import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
-import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
-import { TessellateModifier } from "three/addons/modifiers/TessellateModifier.js";
 import { RectAreaLightUniformsLib } from "three/addons/lights/RectAreaLightUniformsLib.js";
 import { RectAreaLightHelper } from "three/addons/helpers/RectAreaLightHelper.js";
 // import { OrbitControls } from "three/addons/controls/OrbitControls.js";
