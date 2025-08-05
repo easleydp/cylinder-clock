@@ -487,7 +487,7 @@ class CylinderClockRenderer {
         }
         const url = `./textures/${folder}/${fileStem}${fileTail}`;
         const path = new URL(url, import.meta.url).href;
-        //console.log({ url, path });
+        console.log({ url, path });
         fetch(path)
           .then((response) => {
             if (!response.ok) {
