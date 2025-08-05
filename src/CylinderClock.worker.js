@@ -485,15 +485,12 @@ class CylinderClockRenderer {
           resolve([key, null]);
           return;
         }
-        // NOTE: The `url` string parameter passed to the `URL` ctor must be static so it can be analysed (so can't use a variable).
+        // NOTE: The `url` string parameter passed to the `URL` ctor must be static so it can be
+        // analysed by Vite. The upshot is: we can't use a variable!
         const path = new URL(
           `./textures/${folder}/${fileStem}${fileTail}`,
           import.meta.url
         ).href;
-        console.log(0, {
-          url: `./textures/${folder}/${fileStem}${fileTail}`,
-          path,
-        });
         fetch(path)
           .then((response) => {
             if (!response.ok) {
