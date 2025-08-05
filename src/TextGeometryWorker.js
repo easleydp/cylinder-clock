@@ -2,31 +2,15 @@ import * as THREE from "three";
 import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
 import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
 import { TessellateModifier } from "three/addons/modifiers/TessellateModifier.js";
+import fontJson from "./fonts/helvetiker_regular.typeface.json?raw";
 
 let font = null;
 
-async function loadFont() {
-  if (font) return font;
-  const loader = new FontLoader();
-  const path = new URL(
-    // NOTE: The `url` string parameter passed to the `URL` ctor must be static so
-    // it can be analysed by Vite. This means we can't use a variable!
-    "./fonts/helvetiker_regular.typeface.json",
-    import.meta.url
-  ).href;
-  return new Promise((resolve, reject) => {
-    loader.load(
-      path,
-      (loadedFont) => {
-        font = loadedFont;
-        resolve(font);
-      },
-      undefined,
-      (err) => {
-        reject(new Error(`Failed to load font from ${path}: ${err.message}`));
-      }
-    );
-  });
+function loadFont() {
+  if (!font) {
+    const loader = new FontLoader();
+    font = loader.parse(JSON.parse(fontJson));
+  }
 }
 
 function createTextGeom(
@@ -89,7 +73,7 @@ self.onmessage = async (e) => {
 
   if (type === "generate") {
     try {
-      await loadFont();
+      loadFont();
       const {
         displayText,
         textSize,
