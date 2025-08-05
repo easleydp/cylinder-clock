@@ -8,10 +8,12 @@ let font = null;
 async function loadFont() {
   if (font) return font;
   const loader = new FontLoader();
-  // TODO: It's generally better to host font files locally with your
-  // project to avoid issues with external dependencies.
-  const path =
-    "https://threejs.org/examples/fonts/helvetiker_regular.typeface.json";
+  const path = new URL(
+    // NOTE: The `url` string parameter passed to the `URL` ctor must be static so
+    // it can be analysed by Vite. This means we can't use a variable!
+    "./fonts/helvetiker_regular.typeface.json",
+    import.meta.url
+  ).href;
   return new Promise((resolve, reject) => {
     loader.load(
       path,
