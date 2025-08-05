@@ -461,6 +461,11 @@ class CylinderClockRenderer {
   /**
    * Loads textures for cylinder.
    * @returns Promise that resolves to a map of textures keyed by texture name.
+   *
+   * Note: We originally used `THREE.TextureLoader` for extra convenience but since
+   * moving this routine to a web worker we have load the texture image resource
+   * files ourselves, convert them to image bitmaps, then pass each to the
+   * `THREE.Texture` constructor.
    */
   async _loadTextures() {
     const folder = "Marble_Carrara_003_SD";
@@ -480,13 +485,10 @@ class CylinderClockRenderer {
           resolve([key, null]);
           return;
         }
-        // TODO: Specifying an absolute path here doesn't seem right (not going to work if someone wants to use this library in their website).
-        // Couldn't get it working in both dev and production with relative paths:
-        //  Dev
-        //    const path = `./assets/textures/${folder}/${fileStem}${fileTail}`;
-        //  Production
-        //    const path = `./textures/${folder}/${fileStem}${fileTail}`;
-        const path = `/cylinder-clock/assets/textures/${folder}/${fileStem}${fileTail}`;
+        const path = new URL(
+          `./textures/${folder}/${fileStem}${fileTail}`,
+          import.meta.url
+        ).href;
         fetch(path)
           .then((response) => {
             if (!response.ok) {
