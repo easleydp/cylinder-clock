@@ -474,46 +474,55 @@ class CylinderClockRenderer {
       textureColor: "COLOR.jpg",
     };
 
-    // TODO: Fix this to actually use promises. (Since Gemini-CLI modified it to use ImageBitmap, we lost the promises.)
     const promises = Object.entries(fileTails).map(async ([key, fileTail]) => {
-      if (!fileTail) {
-        return [key, null];
-      }
-      // TODO: Specifying an absolute path here doesn't seem right (not going to work if someone wants to use this library in their website).
-      // Couldn't get it working in both dev and production with relative paths:
-      //  Dev
-      //    const path = `./assets/textures/${folder}/${fileStem}${fileTail}`;
-      //  Production
-      //    const path = `./textures/${folder}/${fileStem}${fileTail}`;
-      const path = `/cylinder-clock/assets/textures/${folder}/${fileStem}${fileTail}`;
-      try {
-        const response = await fetch(path);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+      return new Promise((resolve, reject) => {
+        if (!fileTail) {
+          resolve([key, null]);
+          return;
         }
-        const blob = await response.blob();
-        const imageBitmap = await createImageBitmap(blob);
-        const texture = new THREE.Texture(imageBitmap);
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(2, 2);
-        texture.needsUpdate = true;
-        // ImageBitmaps are decoded with the origin at the top-left, which is what WebGL expects.
-        // Three.js's TextureLoader flips UVs for historical reasons with HTMLImageElement.
-        // We set flipY to false to prevent this inversion when using ImageBitmap.
-        texture.flipY = false;
-        return [key, texture];
-      } catch (err) {
-        console.error(`Failed to load texture ${path}: ${err.message}`);
-        return [key, null]; // Resolve with null on error
-      }
+        // TODO: Specifying an absolute path here doesn't seem right (not going to work if someone wants to use this library in their website).
+        // Couldn't get it working in both dev and production with relative paths:
+        //  Dev
+        //    const path = `./assets/textures/${folder}/${fileStem}${fileTail}`;
+        //  Production
+        //    const path = `./textures/${folder}/${fileStem}${fileTail}`;
+        const path = `/cylinder-clock/assets/textures/${folder}/${fileStem}${fileTail}`;
+        fetch(path)
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.blob();
+          })
+          .then((blob) => createImageBitmap(blob))
+          .then((imageBitmap) => {
+            const texture = new THREE.Texture(imageBitmap);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(2, 2);
+            texture.needsUpdate = true;
+            // ImageBitmaps are decoded with the origin at the top-left, which is what WebGL expects.
+            // Three.js's TextureLoader flips UVs for historical reasons with HTMLImageElement.
+            // We set flipY to false to prevent this inversion when using ImageBitmap.
+            texture.flipY = false;
+            resolve([key, texture]);
+          })
+          .catch((err) => {
+            reject(new Error(`Failed to load texture ${path}: ${err.message}`));
+          });
+      });
     });
 
-    const results = await Promise.all(promises);
-    return results.reduce((accum, [key, texture]) => {
-      accum[key] = texture;
-      return accum;
-    }, {});
+    return new Promise((resolve, reject) => {
+      Promise.all(promises).then((results) => {
+        resolve(
+          results.reduce((accum, [key, texture]) => {
+            accum[key] = texture;
+            return accum;
+          }, {})
+        );
+      });
+    });
   }
 
   async _createCylinder() {
@@ -525,7 +534,8 @@ class CylinderClockRenderer {
     });
     const geometry = new THREE.LatheGeometry(points, 64);
 
-    const [textures] = await Promise.all([this._loadTextures()]);
+    const textures = await this._loadTextures();
+
     this.textures = textures;
 
     const material = new THREE.MeshStandardMaterial({
